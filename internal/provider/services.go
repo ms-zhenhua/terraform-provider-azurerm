@@ -50,6 +50,7 @@ import (
 	"github.com/hashicorp/terraform-provider-azurerm/internal/services/iothub"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/services/iottimeseriesinsights"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/services/keyvault"
+	"github.com/hashicorp/terraform-provider-azurerm/internal/services/kubernetesconfiguration"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/services/kusto"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/services/lighthouse"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/services/loadbalancer"
@@ -176,6 +177,7 @@ func SupportedUntypedServices() []sdk.UntypedServiceRegistration {
 		iothub.Registration{},
 		iotcentral.Registration{},
 		keyvault.Registration{},
+		kubernetesconfiguration.Registration{},
 		kusto.Registration{},
 		loadbalancer.Registration{},
 		loganalytics.Registration{},
