@@ -12,7 +12,7 @@ var _ resourceid.Formatter = KubernetesConfigurationSourceControlId{}
 
 func TestKubernetesConfigurationSourceControlIDFormatter(t *testing.T) {
 	actual := NewKubernetesConfigurationSourceControlID("12345678-1234-9876-4563-123456789012", "resourceGroup1", "cluster1", "sourceControlConfiguration1").ID()
-	expected := "/subscriptions/12345678-1234-9876-4563-123456789012/resourceGroups/resourceGroup1/providers/clusterRp1/clusterResource1/cluster1/providers/Microsoft.KubernetesConfiguration/sourceControlConfigurations/sourceControlConfiguration1"
+	expected := "/subscriptions/12345678-1234-9876-4563-123456789012/resourceGroups/resourceGroup1/providers/Microsoft.ContainerService/managedClusters/cluster1/providers/Microsoft.KubernetesConfiguration/sourceControlConfigurations/sourceControlConfiguration1"
 	if actual != expected {
 		t.Fatalf("Expected %q but got %q", expected, actual)
 	}
@@ -56,43 +56,43 @@ func TestKubernetesConfigurationSourceControlID(t *testing.T) {
 		},
 
 		{
-			// missing ClusterResource1Name
-			Input: "/subscriptions/12345678-1234-9876-4563-123456789012/resourceGroups/resourceGroup1/providers/clusterRp1/",
+			// missing ManagedClusterName
+			Input: "/subscriptions/12345678-1234-9876-4563-123456789012/resourceGroups/resourceGroup1/providers/Microsoft.ContainerService/",
 			Error: true,
 		},
 
 		{
-			// missing value for ClusterResource1Name
-			Input: "/subscriptions/12345678-1234-9876-4563-123456789012/resourceGroups/resourceGroup1/providers/clusterRp1/clusterResource1/",
+			// missing value for ManagedClusterName
+			Input: "/subscriptions/12345678-1234-9876-4563-123456789012/resourceGroups/resourceGroup1/providers/Microsoft.ContainerService/managedClusters/",
 			Error: true,
 		},
 
 		{
 			// missing SourceControlConfigurationName
-			Input: "/subscriptions/12345678-1234-9876-4563-123456789012/resourceGroups/resourceGroup1/providers/clusterRp1/clusterResource1/cluster1/providers/Microsoft.KubernetesConfiguration/",
+			Input: "/subscriptions/12345678-1234-9876-4563-123456789012/resourceGroups/resourceGroup1/providers/Microsoft.ContainerService/managedClusters/cluster1/providers/Microsoft.KubernetesConfiguration/",
 			Error: true,
 		},
 
 		{
 			// missing value for SourceControlConfigurationName
-			Input: "/subscriptions/12345678-1234-9876-4563-123456789012/resourceGroups/resourceGroup1/providers/clusterRp1/clusterResource1/cluster1/providers/Microsoft.KubernetesConfiguration/sourceControlConfigurations/",
+			Input: "/subscriptions/12345678-1234-9876-4563-123456789012/resourceGroups/resourceGroup1/providers/Microsoft.ContainerService/managedClusters/cluster1/providers/Microsoft.KubernetesConfiguration/sourceControlConfigurations/",
 			Error: true,
 		},
 
 		{
 			// valid
-			Input: "/subscriptions/12345678-1234-9876-4563-123456789012/resourceGroups/resourceGroup1/providers/clusterRp1/clusterResource1/cluster1/providers/Microsoft.KubernetesConfiguration/sourceControlConfigurations/sourceControlConfiguration1",
+			Input: "/subscriptions/12345678-1234-9876-4563-123456789012/resourceGroups/resourceGroup1/providers/Microsoft.ContainerService/managedClusters/cluster1/providers/Microsoft.KubernetesConfiguration/sourceControlConfigurations/sourceControlConfiguration1",
 			Expected: &KubernetesConfigurationSourceControlId{
 				SubscriptionId:                 "12345678-1234-9876-4563-123456789012",
 				ResourceGroup:                  "resourceGroup1",
-				ClusterResource1Name:           "cluster1",
+				ManagedClusterName:             "cluster1",
 				SourceControlConfigurationName: "sourceControlConfiguration1",
 			},
 		},
 
 		{
 			// upper-cased
-			Input: "/SUBSCRIPTIONS/12345678-1234-9876-4563-123456789012/RESOURCEGROUPS/RESOURCEGROUP1/PROVIDERS/CLUSTERRP1/CLUSTERRESOURCE1/CLUSTER1/PROVIDERS/MICROSOFT.KUBERNETESCONFIGURATION/SOURCECONTROLCONFIGURATIONS/SOURCECONTROLCONFIGURATION1",
+			Input: "/SUBSCRIPTIONS/12345678-1234-9876-4563-123456789012/RESOURCEGROUPS/RESOURCEGROUP1/PROVIDERS/MICROSOFT.CONTAINERSERVICE/MANAGEDCLUSTERS/CLUSTER1/PROVIDERS/MICROSOFT.KUBERNETESCONFIGURATION/SOURCECONTROLCONFIGURATIONS/SOURCECONTROLCONFIGURATION1",
 			Error: true,
 		},
 	}
@@ -118,8 +118,8 @@ func TestKubernetesConfigurationSourceControlID(t *testing.T) {
 		if actual.ResourceGroup != v.Expected.ResourceGroup {
 			t.Fatalf("Expected %q but got %q for ResourceGroup", v.Expected.ResourceGroup, actual.ResourceGroup)
 		}
-		if actual.ClusterName != v.Expected.ClusterName {
-			t.Fatalf("Expected %q but got %q for ClusterResource1Name", v.Expected.ClusterName, actual.ClusterName)
+		if actual.ManagedClusterName != v.Expected.ManagedClusterName {
+			t.Fatalf("Expected %q but got %q for ManagedClusterName", v.Expected.ManagedClusterName, actual.ManagedClusterName)
 		}
 		if actual.SourceControlConfigurationName != v.Expected.SourceControlConfigurationName {
 			t.Fatalf("Expected %q but got %q for SourceControlConfigurationName", v.Expected.SourceControlConfigurationName, actual.SourceControlConfigurationName)

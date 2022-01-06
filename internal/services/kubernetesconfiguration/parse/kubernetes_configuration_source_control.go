@@ -12,19 +12,15 @@ import (
 type KubernetesConfigurationSourceControlId struct {
 	SubscriptionId                 string
 	ResourceGroup                  string
-	ClusterRp                      string
-	ClusterResourceName            string
-	ClusterName                    string
+	ManagedClusterName             string
 	SourceControlConfigurationName string
 }
 
-func NewKubernetesConfigurationSourceControlID(subscriptionId, resourceGroup, clusterRp, clusterResourceName, clusterName, sourceControlConfigurationName string) KubernetesConfigurationSourceControlId {
+func NewKubernetesConfigurationSourceControlID(subscriptionId, resourceGroup, managedClusterName, sourceControlConfigurationName string) KubernetesConfigurationSourceControlId {
 	return KubernetesConfigurationSourceControlId{
 		SubscriptionId:                 subscriptionId,
 		ResourceGroup:                  resourceGroup,
-		ClusterRp:                      clusterRp,
-		ClusterResourceName:            clusterResourceName,
-		ClusterName:                    clusterName,
+		ManagedClusterName:             managedClusterName,
 		SourceControlConfigurationName: sourceControlConfigurationName,
 	}
 }
@@ -32,18 +28,16 @@ func NewKubernetesConfigurationSourceControlID(subscriptionId, resourceGroup, cl
 func (id KubernetesConfigurationSourceControlId) String() string {
 	segments := []string{
 		fmt.Sprintf("Source Control Configuration Name %q", id.SourceControlConfigurationName),
-		fmt.Sprintf("Cluster Name %q", id.ClusterName),
-		fmt.Sprintf("Cluster Resource Name %q", id.ClusterResourceName),
-		fmt.Sprintf("Cluster RP %q", id.ClusterRp),
+		fmt.Sprintf("Managed Cluster Name %q", id.ManagedClusterName),
 		fmt.Sprintf("Resource Group %q", id.ResourceGroup),
 	}
 	segmentsStr := strings.Join(segments, " / ")
-	return fmt.Sprintf("%s: (%s)", "Kubernetes Configuration Source Control Configuration", segmentsStr)
+	return fmt.Sprintf("%s: (%s)", "Kubernetes Configuration Source Control", segmentsStr)
 }
 
 func (id KubernetesConfigurationSourceControlId) ID() string {
-	fmtString := "/subscriptions/%s/resourceGroups/%s/providers/%s/%s/%s/providers/Microsoft.KubernetesConfiguration/sourceControlConfigurations/%s"
-	return fmt.Sprintf(fmtString, id.SubscriptionId, id.ResourceGroup, "Microsoft.ContainerService", "managedClusters", id.ClusterName, id.SourceControlConfigurationName)
+	fmtString := "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.ContainerService/managedClusters/%s/providers/Microsoft.KubernetesConfiguration/sourceControlConfigurations/%s"
+	return fmt.Sprintf(fmtString, id.SubscriptionId, id.ResourceGroup, id.ManagedClusterName, id.SourceControlConfigurationName)
 }
 
 // KubernetesConfigurationSourceControlID parses a KubernetesConfigurationSourceControl ID into an KubernetesConfigurationSourceControlId struct
@@ -66,7 +60,7 @@ func KubernetesConfigurationSourceControlID(input string) (*KubernetesConfigurat
 		return nil, fmt.Errorf("ID was missing the 'resourceGroups' element")
 	}
 
-	if resourceId.ClusterName, err = id.PopSegment("clusterResource1"); err != nil {
+	if resourceId.ManagedClusterName, err = id.PopSegment("managedClusters"); err != nil {
 		return nil, err
 	}
 	if resourceId.SourceControlConfigurationName, err = id.PopSegment("sourceControlConfigurations"); err != nil {

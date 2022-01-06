@@ -40,6 +40,7 @@ func resourceKubernetesConfigurationSourceControl() *pluginsdk.Resource {
                 Type:     pluginsdk.TypeString,
                 Required: true,
                 ForceNew: true,
+                ValidateFunc:,
             },
 
             "resource_group_name": azure.SchemaResourceGroupName(),
@@ -48,6 +49,13 @@ func resourceKubernetesConfigurationSourceControl() *pluginsdk.Resource {
                 Type:     pluginsdk.TypeString,
                 Required: true,
                 ForceNew: true,
+                ValidateFunc:,
+            },
+
+            "repository_url": {
+                Type:     pluginsdk.TypeString,
+                Required: true,
+                ValidateFunc:,
             },
 
             "configuration_protected_settings": {
@@ -90,7 +98,9 @@ func resourceKubernetesConfigurationSourceControl() *pluginsdk.Resource {
             "operator_namespace": {
                 Type:     pluginsdk.TypeString,
                 Optional: true,
+                ForceNew: true,
                 Default: "default",
+                ValidateFunc:,
             },
 
             "operator_params": {
@@ -116,11 +126,6 @@ func resourceKubernetesConfigurationSourceControl() *pluginsdk.Resource {
                 }, false),
             },
 
-            "repository_url": {
-                Type:     pluginsdk.TypeString,
-                Optional: true,
-            },
-
             "ssh_known_hosts_contents": {
                 Type:     pluginsdk.TypeString,
                 Optional: true,
@@ -129,6 +134,7 @@ func resourceKubernetesConfigurationSourceControl() *pluginsdk.Resource {
             "compliance_status": {
                 Type:     pluginsdk.TypeList,
                 Computed: true,
+                MaxItems: 1,
                 Elem: &pluginsdk.Resource{
                     Schema: map[string]*pluginsdk.Schema{
                         "compliance_state": {
@@ -155,11 +161,6 @@ func resourceKubernetesConfigurationSourceControl() *pluginsdk.Resource {
             },
 
             "repository_public_key": {
-                Type:     pluginsdk.TypeString,
-                Computed: true,
-            },
-
-            "type": {
                 Type:     pluginsdk.TypeString,
                 Computed: true,
             },

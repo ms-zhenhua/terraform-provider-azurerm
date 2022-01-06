@@ -41,38 +41,38 @@ func TestKubernetesConfigurationSourceControlID(t *testing.T) {
 		},
 
 		{
-			// missing ClusterResource1Name
-			Input: "/subscriptions/12345678-1234-9876-4563-123456789012/resourceGroups/resourceGroup1/providers/clusterRp1/",
+			// missing ManagedClusterName
+			Input: "/subscriptions/12345678-1234-9876-4563-123456789012/resourceGroups/resourceGroup1/providers/Microsoft.ContainerService/",
 			Valid: false,
 		},
 
 		{
-			// missing value for ClusterResource1Name
-			Input: "/subscriptions/12345678-1234-9876-4563-123456789012/resourceGroups/resourceGroup1/providers/clusterRp1/clusterResource1/",
+			// missing value for ManagedClusterName
+			Input: "/subscriptions/12345678-1234-9876-4563-123456789012/resourceGroups/resourceGroup1/providers/Microsoft.ContainerService/managedClusters/",
 			Valid: false,
 		},
 
 		{
 			// missing SourceControlConfigurationName
-			Input: "/subscriptions/12345678-1234-9876-4563-123456789012/resourceGroups/resourceGroup1/providers/clusterRp1/clusterResource1/cluster1/providers/Microsoft.KubernetesConfiguration/",
+			Input: "/subscriptions/12345678-1234-9876-4563-123456789012/resourceGroups/resourceGroup1/providers/Microsoft.ContainerService/managedClusters/cluster1/providers/Microsoft.KubernetesConfiguration/",
 			Valid: false,
 		},
 
 		{
 			// missing value for SourceControlConfigurationName
-			Input: "/subscriptions/12345678-1234-9876-4563-123456789012/resourceGroups/resourceGroup1/providers/clusterRp1/clusterResource1/cluster1/providers/Microsoft.KubernetesConfiguration/sourceControlConfigurations/",
+			Input: "/subscriptions/12345678-1234-9876-4563-123456789012/resourceGroups/resourceGroup1/providers/Microsoft.ContainerService/managedClusters/cluster1/providers/Microsoft.KubernetesConfiguration/sourceControlConfigurations/",
 			Valid: false,
 		},
 
 		{
 			// valid
-			Input: "/subscriptions/12345678-1234-9876-4563-123456789012/resourceGroups/resourceGroup1/providers/clusterRp1/clusterResource1/cluster1/providers/Microsoft.KubernetesConfiguration/sourceControlConfigurations/sourceControlConfiguration1",
+			Input: "/subscriptions/12345678-1234-9876-4563-123456789012/resourceGroups/resourceGroup1/providers/Microsoft.ContainerService/managedClusters/cluster1/providers/Microsoft.KubernetesConfiguration/sourceControlConfigurations/sourceControlConfiguration1",
 			Valid: true,
 		},
 
 		{
 			// upper-cased
-			Input: "/SUBSCRIPTIONS/12345678-1234-9876-4563-123456789012/RESOURCEGROUPS/RESOURCEGROUP1/PROVIDERS/CLUSTERRP1/CLUSTERRESOURCE1/CLUSTER1/PROVIDERS/MICROSOFT.KUBERNETESCONFIGURATION/SOURCECONTROLCONFIGURATIONS/SOURCECONTROLCONFIGURATION1",
+			Input: "/SUBSCRIPTIONS/12345678-1234-9876-4563-123456789012/RESOURCEGROUPS/RESOURCEGROUP1/PROVIDERS/MICROSOFT.CONTAINERSERVICE/MANAGEDCLUSTERS/CLUSTER1/PROVIDERS/MICROSOFT.KUBERNETESCONFIGURATION/SOURCECONTROLCONFIGURATIONS/SOURCECONTROLCONFIGURATION1",
 			Valid: false,
 		},
 	}
