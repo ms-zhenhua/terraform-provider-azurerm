@@ -10,25 +10,25 @@ import (
 )
 
 type KubernetesConfigurationSourceControlId struct {
-	SubscriptionId                 string
-	ResourceGroup                  string
-	ManagedClusterName             string
-	SourceControlConfigurationName string
+	SubscriptionId    string
+	ResourceGroup     string
+	ClusterName       string
+	SourceControlName string
 }
 
-func NewKubernetesConfigurationSourceControlID(subscriptionId, resourceGroup, managedClusterName, sourceControlConfigurationName string) KubernetesConfigurationSourceControlId {
+func NewKubernetesConfigurationSourceControlID(subscriptionId, resourceGroup, managedClusterName, SourceControlName string) KubernetesConfigurationSourceControlId {
 	return KubernetesConfigurationSourceControlId{
-		SubscriptionId:                 subscriptionId,
-		ResourceGroup:                  resourceGroup,
-		ManagedClusterName:             managedClusterName,
-		SourceControlConfigurationName: sourceControlConfigurationName,
+		SubscriptionId:    subscriptionId,
+		ResourceGroup:     resourceGroup,
+		ClusterName:       managedClusterName,
+		SourceControlName: SourceControlName,
 	}
 }
 
 func (id KubernetesConfigurationSourceControlId) String() string {
 	segments := []string{
-		fmt.Sprintf("Source Control Configuration Name %q", id.SourceControlConfigurationName),
-		fmt.Sprintf("Managed Cluster Name %q", id.ManagedClusterName),
+		fmt.Sprintf("Source Control Configuration Name %q", id.SourceControlName),
+		fmt.Sprintf("Cluster Name %q", id.ClusterName),
 		fmt.Sprintf("Resource Group %q", id.ResourceGroup),
 	}
 	segmentsStr := strings.Join(segments, " / ")
@@ -36,8 +36,8 @@ func (id KubernetesConfigurationSourceControlId) String() string {
 }
 
 func (id KubernetesConfigurationSourceControlId) ID() string {
-	fmtString := "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.ContainerService/managedClusters/%s/providers/Microsoft.KubernetesConfiguration/sourceControlConfigurations/%s"
-	return fmt.Sprintf(fmtString, id.SubscriptionId, id.ResourceGroup, id.ManagedClusterName, id.SourceControlConfigurationName)
+	fmtString := "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.ContainerService/managedClusters/%s/providers/Microsoft.KubernetesConfiguration/SourceControls/%s"
+	return fmt.Sprintf(fmtString, id.SubscriptionId, id.ResourceGroup, id.ClusterName, id.SourceControlName)
 }
 
 // KubernetesConfigurationSourceControlID parses a KubernetesConfigurationSourceControl ID into an KubernetesConfigurationSourceControlId struct
@@ -60,10 +60,10 @@ func KubernetesConfigurationSourceControlID(input string) (*KubernetesConfigurat
 		return nil, fmt.Errorf("ID was missing the 'resourceGroups' element")
 	}
 
-	if resourceId.ManagedClusterName, err = id.PopSegment("managedClusters"); err != nil {
+	if resourceId.ClusterName, err = id.PopSegment("managedClusters"); err != nil {
 		return nil, err
 	}
-	if resourceId.SourceControlConfigurationName, err = id.PopSegment("sourceControlConfigurations"); err != nil {
+	if resourceId.SourceControlName, err = id.PopSegment("SourceControls"); err != nil {
 		return nil, err
 	}
 

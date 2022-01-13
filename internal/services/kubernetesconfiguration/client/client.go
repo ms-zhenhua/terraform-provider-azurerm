@@ -10,10 +10,10 @@ type Client struct {
 }
 
 func NewClient(o *common.ClientOptions) *Client {
-	sourceControlConfigurationClient := kubernetesconfiguration.NewSourceControlConfigurationsClientWithBaseURI(o.ResourceManagerEndpoint, o.SubscriptionId)
-	o.ConfigureClient(&sourceControlConfigurationClient.Client, o.ResourceManagerAuthorizer)
+	SourceControlClient := kubernetesconfiguration.NewSourceControlConfigurationsClientWithBaseURI(o.ResourceManagerEndpoint, o.SubscriptionId)
+	o.ConfigureClient(&SourceControlClient.Client, o.ResourceManagerAuthorizer)
 
 	return &Client{
-		SourceControlClient: &sourceControlConfigurationClient,
+		SourceControlClient: &SourceControlClient,
 	}
 }
