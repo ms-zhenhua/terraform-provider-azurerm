@@ -32,6 +32,7 @@ func Schema() *pluginsdk.Schema {
 	return &pluginsdk.Schema{
 		Type:         pluginsdk.TypeMap,
 		Optional:     true,
+		Computed:     true,
 		ValidateFunc: Validate,
 		Elem: &pluginsdk.Schema{
 			Type: pluginsdk.TypeString,

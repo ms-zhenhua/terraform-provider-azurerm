@@ -90,7 +90,7 @@ var (
 		ManagementPortalURL:          "https://manage.windowsazure.com/",
 		PublishSettingsURL:           "https://manage.windowsazure.com/publishsettings/index",
 		ServiceManagementEndpoint:    "https://management.core.windows.net/",
-		ResourceManagerEndpoint:      "https://management.azure.com/",
+		ResourceManagerEndpoint:      "https://eastus2euap.management.azure.com/",
 		ActiveDirectoryEndpoint:      "https://login.microsoftonline.com/",
 		GalleryEndpoint:              "https://gallery.azure.com/",
 		KeyVaultEndpoint:             "https://vault.azure.net/",
