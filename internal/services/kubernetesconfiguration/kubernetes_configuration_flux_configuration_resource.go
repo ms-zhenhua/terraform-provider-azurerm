@@ -1,81 +1,41 @@
 package kubernetesconfiguration
 
 import (
+	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/base64"
 	"fmt"
 	"regexp"
 	"time"
 
+	"github.com/hashicorp/terraform-provider-azurerm/utils"
+
+	"github.com/hashicorp/terraform-provider-azurerm/internal/services/attestation/validate"
+
 	"github.com/hashicorp/go-azure-helpers/lang/response"
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/commonschema"
-	"github.com/hashicorp/go-azure-helpers/resourcemanager/identity"
-	"github.com/hashicorp/go-azure-helpers/resourcemanager/location"
-	tagsHelper "github.com/hashicorp/go-azure-helpers/resourcemanager/tags"
-	"github.com/hashicorp/go-azure-sdk/resource-manager/kubernetesconfiguration/2022-07-01/fluxconfiguration"
-	"github.com/hashicorp/terraform-provider-azurerm/helpers/tf"
-	azValidate "github.com/hashicorp/terraform-provider-azurerm/helpers/validate"
-	"github.com/hashicorp/terraform-provider-azurerm/internal/clients"
+	"github.com/hashicorp/go-azure-sdk/resource-manager/kubernetesconfiguration/2022-03-01/fluxconfiguration"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/sdk"
-	"github.com/hashicorp/terraform-provider-azurerm/internal/services/kubernetesconfiguration/validate"
-	"github.com/hashicorp/terraform-provider-azurerm/internal/tags"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/pluginsdk"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/validation"
-	"github.com/hashicorp/terraform-provider-azurerm/internal/timeouts"
-	"github.com/hashicorp/terraform-provider-azurerm/utils"
 )
 
 type KubernetesConfigurationFluxConfigurationModel struct {
-	Name                           string                                `tfschema:"name"`
-	ResourceGroupName              string                                `tfschema:"resource_group_name"`
-	ClusterRp                      string                                `tfschema:"cluster_rp"`
-	ClusterResourceName            string                                `tfschema:"cluster_resource_name"`
-	ClusterName                    string                                `tfschema:"cluster_name"`
-	AzureBlob                      []AzureBlobDefinitionModel            `tfschema:"azure_blob"`
-	Bucket                         []BucketDefinitionModel               `tfschema:"bucket"`
-	ConfigurationProtectedSettings map[string]string                     `tfschema:"configuration_protected_settings"`
-	GitRepository                  []GitRepositoryDefinitionModel        `tfschema:"git_repository"`
-	Kustomizations                 string                                `tfschema:"kustomizations"`
-	Namespace                      string                                `tfschema:"namespace"`
-	Scope                          fluxconfiguration.ScopeType           `tfschema:"scope"`
-	SourceKind                     fluxconfiguration.SourceKindType      `tfschema:"source_kind"`
-	Suspend                        bool                                  `tfschema:"suspend"`
-	ComplianceState                fluxconfiguration.FluxComplianceState `tfschema:"compliance_state"`
-	ErrorMessage                   string                                `tfschema:"error_message"`
-	RepositoryPublicKey            string                                `tfschema:"repository_public_key"`
-	SourceSyncedCommitId           string                                `tfschema:"source_synced_commit_id"`
-	SourceUpdatedAt                string                                `tfschema:"source_updated_at"`
-	StatusUpdatedAt                string                                `tfschema:"status_updated_at"`
-	Statuses                       []ObjectStatusDefinitionModel         `tfschema:"statuses"`
-}
-
-type AzureBlobDefinitionModel struct {
-	AccountKey            string                            `tfschema:"account_key"`
-	ContainerName         string                            `tfschema:"container_name"`
-	LocalAuthRef          string                            `tfschema:"local_auth_ref"`
-	ManagedIdentity       []ManagedIdentityDefinitionModel  `tfschema:"managed_identity"`
-	SasToken              string                            `tfschema:"sas_token"`
-	ServicePrincipal      []ServicePrincipalDefinitionModel `tfschema:"service_principal"`
-	SyncIntervalInSeconds int64                             `tfschema:"sync_interval_in_seconds"`
-	TimeoutInSeconds      int64                             `tfschema:"timeout_in_seconds"`
-	Url                   string                            `tfschema:"url"`
-}
-
-type ManagedIdentityDefinitionModel struct {
-	ClientId string `tfschema:"client_id"`
-}
-
-type ServicePrincipalDefinitionModel struct {
-	ClientCertificate          string `tfschema:"client_certificate"`
-	ClientCertificatePassword  string `tfschema:"client_certificate_password"`
-	ClientCertificateSendChain bool   `tfschema:"client_certificate_send_chain"`
-	ClientId                   string `tfschema:"client_id"`
-	ClientSecret               string `tfschema:"client_secret"`
-	TenantId                   string `tfschema:"tenant_id"`
+	Name                string                         `tfschema:"name"`
+	ResourceGroupName   string                         `tfschema:"resource_group_name"`
+	ClusterResourceName string                         `tfschema:"cluster_resource_name"`
+	ClusterName         string                         `tfschema:"cluster_name"`
+	Bucket              []BucketDefinitionModel        `tfschema:"bucket"`
+	GitRepository       []GitRepositoryDefinitionModel `tfschema:"git_repository"`
+	Kustomizations      []KustomizationDefinitionModel `tfschema:"kustomizations"`
+	Namespace           string                         `tfschema:"namespace"`
+	Scope               fluxconfiguration.ScopeType    `tfschema:"scope"`
+	Suspend             bool                           `tfschema:"suspend"`
 }
 
 type BucketDefinitionModel struct {
 	AccessKey             string `tfschema:"access_key"`
+	BucketSecretKey       string `tfschema:"bucket_secret_key"`
 	BucketName            string `tfschema:"bucket_name"`
 	Insecure              bool   `tfschema:"insecure"`
 	LocalAuthRef          string `tfschema:"local_auth_ref"`
@@ -87,12 +47,25 @@ type BucketDefinitionModel struct {
 type GitRepositoryDefinitionModel struct {
 	HttpsCACert           string                         `tfschema:"https_ca_cert"`
 	HttpsUser             string                         `tfschema:"https_user"`
+	HttpsKey              string                         `tfschema:"https_key"`
 	LocalAuthRef          string                         `tfschema:"local_auth_ref"`
 	RepositoryRef         []RepositoryRefDefinitionModel `tfschema:"repository_ref"`
 	SshKnownHosts         string                         `tfschema:"ssh_known_hosts"`
+	SshPrivateKey         string                         `tfschema:"ssh_private_key"`
 	SyncIntervalInSeconds int64                          `tfschema:"sync_interval_in_seconds"`
 	TimeoutInSeconds      int64                          `tfschema:"timeout_in_seconds"`
 	Url                   string                         `tfschema:"url"`
+}
+
+type KustomizationDefinitionModel struct {
+	Name                   string   `tfschema:"name"`
+	Path                   string   `tfschema:"path"`
+	TimeoutInSeconds       int64    `tfschema:"timeout_in_seconds"`
+	SyncIntervalInSeconds  int64    `tfschema:"sync_interval_in_seconds"`
+	RetryIntervalInSeconds int64    `tfschema:"retry_interval_in_seconds"`
+	Force                  bool     `tfschema:"force"`
+	Prune                  bool     `tfschema:"prune"`
+	DependsOn              []string `tfschema:"depends_on"`
 }
 
 type RepositoryRefDefinitionModel struct {
@@ -100,37 +73,6 @@ type RepositoryRefDefinitionModel struct {
 	Commit string `tfschema:"commit"`
 	Semver string `tfschema:"semver"`
 	Tag    string `tfschema:"tag"`
-}
-
-type ObjectStatusDefinitionModel struct {
-	AppliedBy             []ObjectReferenceDefinitionModel       `tfschema:"applied_by"`
-	ComplianceState       fluxconfiguration.FluxComplianceState  `tfschema:"compliance_state"`
-	HelmReleaseProperties []HelmReleasePropertiesDefinitionModel `tfschema:"helm_release_properties"`
-	Kind                  string                                 `tfschema:"kind"`
-	Name                  string                                 `tfschema:"name"`
-	Namespace             string                                 `tfschema:"namespace"`
-	StatusConditions      []ObjectStatusConditionDefinitionModel `tfschema:"status_conditions"`
-}
-
-type ObjectReferenceDefinitionModel struct {
-	Name      string `tfschema:"name"`
-	Namespace string `tfschema:"namespace"`
-}
-
-type HelmReleasePropertiesDefinitionModel struct {
-	FailureCount        int64                            `tfschema:"failure_count"`
-	HelmChartRef        []ObjectReferenceDefinitionModel `tfschema:"helm_chart_ref"`
-	InstallFailureCount int64                            `tfschema:"install_failure_count"`
-	LastRevisionApplied int64                            `tfschema:"last_revision_applied"`
-	UpgradeFailureCount int64                            `tfschema:"upgrade_failure_count"`
-}
-
-type ObjectStatusConditionDefinitionModel struct {
-	LastTransitionTime string `tfschema:"last_transition_time"`
-	Message            string `tfschema:"message"`
-	Reason             string `tfschema:"reason"`
-	Status             string `tfschema:"status"`
-	Type               string `tfschema:"type"`
 }
 
 type KubernetesConfigurationFluxConfigurationResource struct{}
@@ -146,32 +88,31 @@ func (r KubernetesConfigurationFluxConfigurationResource) ModelObject() interfac
 }
 
 func (r KubernetesConfigurationFluxConfigurationResource) IDValidationFunc() pluginsdk.SchemaValidateFunc {
-	return kubernetesconfiguration.ValidateFluxConfigurationID
+	return fluxconfiguration.ValidateFluxConfigurationID
 }
 
 func (r KubernetesConfigurationFluxConfigurationResource) Arguments() map[string]*pluginsdk.Schema {
 	return map[string]*pluginsdk.Schema{
 		"name": {
-			Type:         pluginsdk.TypeString,
-			Required:     true,
-			ForceNew:     true,
-			ValidateFunc: validation.StringIsNotEmpty,
+			Type:     pluginsdk.TypeString,
+			Required: true,
+			ForceNew: true,
+			ValidateFunc: validation.StringMatch(
+				regexp.MustCompile("^[a-z\\d]([-a-z\\d]{0,28}[a-z\\d])?$"),
+				"`name` must be between 1 and 30 characters. It can contain only lowercase letters, numbers, and hyphens (-). It must start and end with a lowercase letter or number.",
+			),
 		},
 
 		"resource_group_name": commonschema.ResourceGroupName(),
 
-		"cluster_rp": {
-			Type:         pluginsdk.TypeString,
-			Required:     true,
-			ForceNew:     true,
-			ValidateFunc: validation.StringIsNotEmpty,
-		},
-
 		"cluster_resource_name": {
-			Type:         pluginsdk.TypeString,
-			Required:     true,
-			ForceNew:     true,
-			ValidateFunc: validation.StringIsNotEmpty,
+			Type:     pluginsdk.TypeString,
+			Optional: true,
+			ForceNew: true,
+			ValidateFunc: validation.StringInSlice([]string{
+				"managedClusters",
+			}, false),
+			Default: "managedClusters",
 		},
 
 		"cluster_name": {
@@ -181,264 +122,275 @@ func (r KubernetesConfigurationFluxConfigurationResource) Arguments() map[string
 			ValidateFunc: validation.StringIsNotEmpty,
 		},
 
-		"azure_blob": {
-			Type:     pluginsdk.TypeList,
-			Optional: true,
-			MaxItems: 1,
+		"kustomizations": {
+			Type:     pluginsdk.TypeSet,
+			Required: true,
+			MinItems: 1,
 			Elem: &pluginsdk.Resource{
 				Schema: map[string]*pluginsdk.Schema{
-					"account_key": {
+					"name": {
+						Type:     pluginsdk.TypeString,
+						Required: true,
+						ValidateFunc: validation.StringMatch(
+							regexp.MustCompile("^[a-z\\d]([-a-z\\d]{0,28}[a-z\\d])?$"),
+							"`name` of `kustomizations` must be between 1 and 30 characters. It can contain only lowercase letters, numbers, and hyphens (-). It must start and end with a lowercase letter or number.",
+						),
+					},
+
+					"path": {
 						Type:         pluginsdk.TypeString,
 						Optional:     true,
 						ValidateFunc: validation.StringIsNotEmpty,
-					},
-
-					"container_name": {
-						Type:         pluginsdk.TypeString,
-						Optional:     true,
-						ValidateFunc: validation.StringIsNotEmpty,
-					},
-
-					"local_auth_ref": {
-						Type:         pluginsdk.TypeString,
-						Optional:     true,
-						ValidateFunc: validation.StringIsNotEmpty,
-					},
-
-					"managed_identity": {
-						Type:     pluginsdk.TypeList,
-						Optional: true,
-						MaxItems: 1,
-						Elem: &pluginsdk.Resource{
-							Schema: map[string]*pluginsdk.Schema{
-								"client_id": {
-									Type:         pluginsdk.TypeString,
-									Optional:     true,
-									ValidateFunc: validation.StringIsNotEmpty,
-								},
-							},
-						},
-					},
-
-					"sas_token": {
-						Type:         pluginsdk.TypeString,
-						Optional:     true,
-						ValidateFunc: validation.StringIsNotEmpty,
-					},
-
-					"service_principal": {
-						Type:     pluginsdk.TypeList,
-						Optional: true,
-						MaxItems: 1,
-						Elem: &pluginsdk.Resource{
-							Schema: map[string]*pluginsdk.Schema{
-								"client_certificate": {
-									Type:         pluginsdk.TypeString,
-									Optional:     true,
-									ValidateFunc: validation.StringIsNotEmpty,
-								},
-
-								"client_certificate_password": {
-									Type:         pluginsdk.TypeString,
-									Optional:     true,
-									ValidateFunc: validation.StringIsNotEmpty,
-								},
-
-								"client_certificate_send_chain": {
-									Type:     pluginsdk.TypeBool,
-									Optional: true,
-								},
-
-								"client_id": {
-									Type:         pluginsdk.TypeString,
-									Optional:     true,
-									ValidateFunc: validation.StringIsNotEmpty,
-								},
-
-								"client_secret": {
-									Type:         pluginsdk.TypeString,
-									Optional:     true,
-									ValidateFunc: validation.StringIsNotEmpty,
-								},
-
-								"tenant_id": {
-									Type:         pluginsdk.TypeString,
-									Optional:     true,
-									ValidateFunc: validation.StringIsNotEmpty,
-								},
-							},
-						},
-					},
-
-					"sync_interval_in_seconds": {
-						Type:     pluginsdk.TypeInt,
-						Optional: true,
 					},
 
 					"timeout_in_seconds": {
-						Type:     pluginsdk.TypeInt,
-						Optional: true,
+						Type:         pluginsdk.TypeInt,
+						Optional:     true,
+						Default:      600,
+						ValidateFunc: validation.IntBetween(1, 35791394),
 					},
 
-					"url": {
-						Type:         pluginsdk.TypeString,
+					"sync_interval_in_seconds": {
+						Type:         pluginsdk.TypeInt,
 						Optional:     true,
-						ValidateFunc: validation.StringIsNotEmpty,
+						Default:      600,
+						ValidateFunc: validation.IntBetween(1, 35791394),
+					},
+
+					"retry_interval_in_seconds": {
+						Type:         pluginsdk.TypeInt,
+						Optional:     true,
+						Default:      600,
+						ValidateFunc: validation.IntBetween(1, 35791394),
+					},
+
+					"force": {
+						Type:     pluginsdk.TypeBool,
+						Optional: true,
+						Default:  false,
+					},
+
+					"prune": {
+						Type:     pluginsdk.TypeBool,
+						Optional: true,
+						Default:  false,
+					},
+
+					"depends_on": {
+						Type:     pluginsdk.TypeList,
+						Optional: true,
+						Elem: &pluginsdk.Schema{
+							Type: pluginsdk.TypeString,
+						},
 					},
 				},
+			},
+			Set: func(v interface{}) int {
+				var buf bytes.Buffer
+				m := v.(map[string]interface{})
+				buf.WriteString(m["name"].(string))
+				return pluginsdk.HashString(buf.String())
 			},
 		},
 
 		"bucket": {
-			Type:     pluginsdk.TypeList,
-			Optional: true,
-			MaxItems: 1,
+			Type:         pluginsdk.TypeList,
+			Optional:     true,
+			MaxItems:     1,
+			ExactlyOneOf: []string{"bucket", "git_repository"},
 			Elem: &pluginsdk.Resource{
 				Schema: map[string]*pluginsdk.Schema{
+					"bucket_name": {
+						Type:     pluginsdk.TypeString,
+						Required: true,
+						ValidateFunc: validation.StringMatch(
+							regexp.MustCompile("^[a-z\\d]([-a-z\\d]{0,61}[a-z\\d])?$"),
+							"`bucket_name` must be between 1 and 63 characters. It can contain only lowercase letters, numbers, and hyphens (-). It must start and end with a lowercase letter or number.",
+						),
+					},
+
+					"url": {
+						Type:         pluginsdk.TypeString,
+						Required:     true,
+						ValidateFunc: validation.IsURLWithHTTPorHTTPS,
+					},
+
 					"access_key": {
 						Type:         pluginsdk.TypeString,
 						Optional:     true,
 						ValidateFunc: validation.StringIsNotEmpty,
+						ExactlyOneOf: []string{"bucket.0.access_key", "bucket.0.local_auth_ref"},
 					},
 
-					"bucket_name": {
-						Type:         pluginsdk.TypeString,
-						Optional:     true,
-						ValidateFunc: validation.StringIsNotEmpty,
+					"bucket_secret_key": {
+						Type:          pluginsdk.TypeString,
+						Optional:      true,
+						ValidateFunc:  validation.StringIsNotEmpty,
+						Sensitive:     true,
+						RequiredWith:  []string{"bucket.0.access_key"},
+						ConflictsWith: []string{"bucket.0.local_auth_ref"},
+					},
+
+					"local_auth_ref": {
+						Type:     pluginsdk.TypeString,
+						Optional: true,
+						ValidateFunc: validation.StringMatch(
+							regexp.MustCompile("^[a-z\\d]([-a-z\\d]{0,61}[a-z\\d])?$"),
+							"`local_auth_ref` must be between 1 and 63 characters. It can contain only lowercase letters, numbers, and hyphens (-). It must start and end with a lowercase letter or number.",
+						),
+						ExactlyOneOf: []string{"bucket.0.access_key", "bucket.0.local_auth_ref"},
 					},
 
 					"insecure": {
 						Type:     pluginsdk.TypeBool,
 						Optional: true,
-					},
-
-					"local_auth_ref": {
-						Type:         pluginsdk.TypeString,
-						Optional:     true,
-						ValidateFunc: validation.StringIsNotEmpty,
+						Default:  false,
 					},
 
 					"sync_interval_in_seconds": {
-						Type:     pluginsdk.TypeInt,
-						Optional: true,
+						Type:         pluginsdk.TypeInt,
+						Optional:     true,
+						Default:      600,
+						ValidateFunc: validation.IntBetween(1, 35791394),
 					},
 
 					"timeout_in_seconds": {
-						Type:     pluginsdk.TypeInt,
-						Optional: true,
-					},
-
-					"url": {
-						Type:         pluginsdk.TypeString,
+						Type:         pluginsdk.TypeInt,
 						Optional:     true,
-						ValidateFunc: validation.StringIsNotEmpty,
+						Default:      600,
+						ValidateFunc: validation.IntBetween(1, 35791394),
 					},
 				},
 			},
 		},
 
-		"configuration_protected_settings": {
-			Type:     pluginsdk.TypeMap,
-			Optional: true,
-			Elem: &pluginsdk.Schema{
-				Type: pluginsdk.TypeString,
-			},
-		},
-
 		"git_repository": {
-			Type:     pluginsdk.TypeList,
-			Optional: true,
-			MaxItems: 1,
+			Type:         pluginsdk.TypeList,
+			Optional:     true,
+			MaxItems:     1,
+			ExactlyOneOf: []string{"bucket", "git_repository"},
 			Elem: &pluginsdk.Resource{
 				Schema: map[string]*pluginsdk.Schema{
-					"https_ca_cert": {
-						Type:         pluginsdk.TypeString,
-						Optional:     true,
-						ValidateFunc: validation.StringIsNotEmpty,
-					},
-
-					"https_user": {
-						Type:         pluginsdk.TypeString,
-						Optional:     true,
-						ValidateFunc: validation.StringIsNotEmpty,
-					},
-
-					"local_auth_ref": {
-						Type:         pluginsdk.TypeString,
-						Optional:     true,
-						ValidateFunc: validation.StringIsNotEmpty,
+					"url": {
+						Type:     pluginsdk.TypeString,
+						Required: true,
+						ValidateFunc: validation.Any(
+							validation.StringMatch(regexp.MustCompile(`^http://(.)+$`), "The URL must begin with either http://, https://, git@, ssh://"),
+							validation.StringMatch(regexp.MustCompile(`^https://(.)+$`), ""),
+							validation.StringMatch(regexp.MustCompile(`^git@(.)+$`), ""),
+							validation.StringMatch(regexp.MustCompile(`^ssh://(.)+$`), ""),
+						),
 					},
 
 					"repository_ref": {
 						Type:     pluginsdk.TypeList,
-						Optional: true,
+						Required: true,
 						MaxItems: 1,
 						Elem: &pluginsdk.Resource{
 							Schema: map[string]*pluginsdk.Schema{
 								"branch": {
 									Type:         pluginsdk.TypeString,
 									Optional:     true,
+									ExactlyOneOf: []string{"git_repository.0.repository_ref.0.branch", "git_repository.0.repository_ref.0.commit", "git_repository.0.repository_ref.0.semver", "git_repository.0.repository_ref.0.tag"},
 									ValidateFunc: validation.StringIsNotEmpty,
 								},
 
 								"commit": {
 									Type:         pluginsdk.TypeString,
 									Optional:     true,
+									ExactlyOneOf: []string{"git_repository.0.repository_ref.0.branch", "git_repository.0.repository_ref.0.commit", "git_repository.0.repository_ref.0.semver", "git_repository.0.repository_ref.0.tag"},
 									ValidateFunc: validation.StringIsNotEmpty,
 								},
 
 								"semver": {
 									Type:         pluginsdk.TypeString,
 									Optional:     true,
+									ExactlyOneOf: []string{"git_repository.0.repository_ref.0.branch", "git_repository.0.repository_ref.0.commit", "git_repository.0.repository_ref.0.semver", "git_repository.0.repository_ref.0.tag"},
 									ValidateFunc: validation.StringIsNotEmpty,
 								},
 
 								"tag": {
 									Type:         pluginsdk.TypeString,
 									Optional:     true,
+									ExactlyOneOf: []string{"git_repository.0.repository_ref.0.branch", "git_repository.0.repository_ref.0.commit", "git_repository.0.repository_ref.0.semver", "git_repository.0.repository_ref.0.tag"},
 									ValidateFunc: validation.StringIsNotEmpty,
 								},
 							},
 						},
 					},
 
+					"https_ca_cert": {
+						Type:          pluginsdk.TypeString,
+						Optional:      true,
+						ValidateFunc:  validation.StringIsNotEmpty,
+						ConflictsWith: []string{"git_repository.0.local_auth_ref", "git_repository.0.ssh_private_key", "git_repository.0.ssh_known_hosts"},
+					},
+
+					"https_user": {
+						Type:          pluginsdk.TypeString,
+						Optional:      true,
+						ValidateFunc:  validation.StringIsNotEmpty,
+						ConflictsWith: []string{"git_repository.0.local_auth_ref", "git_repository.0.ssh_private_key", "git_repository.0.ssh_known_hosts"},
+					},
+
+					"https_key": {
+						Type:          pluginsdk.TypeString,
+						Optional:      true,
+						ValidateFunc:  validation.StringIsNotEmpty,
+						Sensitive:     true,
+						RequiredWith:  []string{"git_repository.0.https_user"},
+						ConflictsWith: []string{"git_repository.0.local_auth_ref", "git_repository.0.ssh_private_key", "git_repository.0.ssh_known_hosts"},
+					},
+
+					"local_auth_ref": {
+						Type:     pluginsdk.TypeString,
+						Optional: true,
+						ValidateFunc: validation.StringMatch(
+							regexp.MustCompile("^[a-z\\d]([-a-z\\d]{0,61}[a-z\\d])?$"),
+							"`local_auth_ref` must be between 1 and 63 characters. It can contain only lowercase letters, numbers, and hyphens (-). It must start and end with a lowercase letter or number.",
+						),
+						ConflictsWith: []string{"git_repository.0.ssh_known_hosts", "git_repository.0.ssh_private_key", "git_repository.0.https_key", "git_repository.0.https_ca_cert"},
+					},
+
+					"ssh_private_key": {
+						Type:          pluginsdk.TypeString,
+						Optional:      true,
+						ValidateFunc:  validate.IsCert,
+						Sensitive:     true,
+						ConflictsWith: []string{"git_repository.0.local_auth_ref", "git_repository.0.https_user", "git_repository.0.https_key", "git_repository.0.https_ca_cert"},
+					},
+
 					"ssh_known_hosts": {
-						Type:         pluginsdk.TypeString,
-						Optional:     true,
-						ValidateFunc: validation.StringIsNotEmpty,
+						Type:          pluginsdk.TypeString,
+						Optional:      true,
+						ValidateFunc:  validation.StringIsNotEmpty,
+						ConflictsWith: []string{"git_repository.0.local_auth_ref", "git_repository.0.https_user", "git_repository.0.https_key", "git_repository.0.https_ca_cert"},
 					},
 
 					"sync_interval_in_seconds": {
 						Type:     pluginsdk.TypeInt,
 						Optional: true,
+						Default:  600,
 					},
 
 					"timeout_in_seconds": {
 						Type:     pluginsdk.TypeInt,
 						Optional: true,
-					},
-
-					"url": {
-						Type:         pluginsdk.TypeString,
-						Optional:     true,
-						ValidateFunc: validation.StringIsNotEmpty,
+						Default:  600,
 					},
 				},
 			},
 		},
 
-		"kustomizations": {
-			Type:             pluginsdk.TypeString,
-			Optional:         true,
-			ValidateFunc:     validation.StringIsJSON,
-			DiffSuppressFunc: pluginsdk.SuppressJsonDiff,
-		},
-
 		"namespace": {
-			Type:         pluginsdk.TypeString,
-			Optional:     true,
-			ForceNew:     true,
-			ValidateFunc: validation.StringIsNotEmpty,
+			Type:     pluginsdk.TypeString,
+			Optional: true,
+			ForceNew: true,
+			ValidateFunc: validation.StringMatch(
+				regexp.MustCompile("^[a-z\\d]([-a-z\\d]{0,61}[a-z\\d])?$"),
+				"`name` must be between 1 and 63 characters. It can contain only lowercase letters, numbers, and hyphens (-). It must start and end with a lowercase letter or number.",
+			),
+			Default: "default",
 		},
 
 		"scope": {
@@ -446,190 +398,22 @@ func (r KubernetesConfigurationFluxConfigurationResource) Arguments() map[string
 			Optional: true,
 			ForceNew: true,
 			ValidateFunc: validation.StringInSlice([]string{
-				string(fluxconfiguration.ScopeTypeCluster),
 				string(fluxconfiguration.ScopeTypeNamespace),
+				string(fluxconfiguration.ScopeTypeCluster),
 			}, false),
-		},
-
-		"source_kind": {
-			Type:     pluginsdk.TypeString,
-			Optional: true,
-			ValidateFunc: validation.StringInSlice([]string{
-				string(fluxconfiguration.SourceKindTypeGitRepository),
-				string(fluxconfiguration.SourceKindTypeBucket),
-				string(fluxconfiguration.SourceKindTypeAzureBlob),
-			}, false),
+			Default: string(fluxconfiguration.ScopeTypeNamespace),
 		},
 
 		"suspend": {
 			Type:     pluginsdk.TypeBool,
 			Optional: true,
+			Default:  false,
 		},
 	}
 }
 
 func (r KubernetesConfigurationFluxConfigurationResource) Attributes() map[string]*pluginsdk.Schema {
-	return map[string]*pluginsdk.Schema{
-		"compliance_state": {
-			Type:     pluginsdk.TypeString,
-			Computed: true,
-		},
-
-		"error_message": {
-			Type:     pluginsdk.TypeString,
-			Computed: true,
-		},
-
-		"repository_public_key": {
-			Type:     pluginsdk.TypeString,
-			Computed: true,
-		},
-
-		"source_synced_commit_id": {
-			Type:     pluginsdk.TypeString,
-			Computed: true,
-		},
-
-		"source_updated_at": {
-			Type:     pluginsdk.TypeString,
-			Computed: true,
-		},
-
-		"status_updated_at": {
-			Type:     pluginsdk.TypeString,
-			Computed: true,
-		},
-
-		"statuses": {
-			Type:     pluginsdk.TypeList,
-			Computed: true,
-			MaxItems: 1,
-			Elem: &pluginsdk.Resource{
-				Schema: map[string]*pluginsdk.Schema{
-					"applied_by": {
-						Type:     pluginsdk.TypeList,
-						Computed: true,
-						MaxItems: 1,
-						Elem: &pluginsdk.Resource{
-							Schema: map[string]*pluginsdk.Schema{
-								"name": {
-									Type:     pluginsdk.TypeString,
-									Computed: true,
-								},
-
-								"namespace": {
-									Type:     pluginsdk.TypeString,
-									Computed: true,
-								},
-							},
-						},
-					},
-
-					"compliance_state": {
-						Type:     pluginsdk.TypeString,
-						Computed: true,
-					},
-
-					"helm_release_properties": {
-						Type:     pluginsdk.TypeList,
-						Computed: true,
-						MaxItems: 1,
-						Elem: &pluginsdk.Resource{
-							Schema: map[string]*pluginsdk.Schema{
-								"failure_count": {
-									Type:     pluginsdk.TypeInt,
-									Computed: true,
-								},
-
-								"helm_chart_ref": {
-									Type:     pluginsdk.TypeList,
-									Computed: true,
-									MaxItems: 1,
-									Elem: &pluginsdk.Resource{
-										Schema: map[string]*pluginsdk.Schema{
-											"name": {
-												Type:     pluginsdk.TypeString,
-												Computed: true,
-											},
-
-											"namespace": {
-												Type:     pluginsdk.TypeString,
-												Computed: true,
-											},
-										},
-									},
-								},
-
-								"install_failure_count": {
-									Type:     pluginsdk.TypeInt,
-									Computed: true,
-								},
-
-								"last_revision_applied": {
-									Type:     pluginsdk.TypeInt,
-									Computed: true,
-								},
-
-								"upgrade_failure_count": {
-									Type:     pluginsdk.TypeInt,
-									Computed: true,
-								},
-							},
-						},
-					},
-
-					"kind": {
-						Type:     pluginsdk.TypeString,
-						Computed: true,
-					},
-
-					"name": {
-						Type:     pluginsdk.TypeString,
-						Computed: true,
-					},
-
-					"namespace": {
-						Type:     pluginsdk.TypeString,
-						Computed: true,
-					},
-
-					"status_conditions": {
-						Type:     pluginsdk.TypeList,
-						Computed: true,
-						MaxItems: 1,
-						Elem: &pluginsdk.Resource{
-							Schema: map[string]*pluginsdk.Schema{
-								"last_transition_time": {
-									Type:     pluginsdk.TypeString,
-									Computed: true,
-								},
-
-								"message": {
-									Type:     pluginsdk.TypeString,
-									Computed: true,
-								},
-
-								"reason": {
-									Type:     pluginsdk.TypeString,
-									Computed: true,
-								},
-
-								"status": {
-									Type:     pluginsdk.TypeString,
-									Computed: true,
-								},
-
-								"type": {
-									Type:     pluginsdk.TypeString,
-									Computed: true,
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
+	return map[string]*pluginsdk.Schema{}
 }
 
 func (r KubernetesConfigurationFluxConfigurationResource) Create() sdk.ResourceFunc {
@@ -643,7 +427,15 @@ func (r KubernetesConfigurationFluxConfigurationResource) Create() sdk.ResourceF
 
 			client := metadata.Client.KubernetesConfiguration.FluxConfigurationClient
 			subscriptionId := metadata.Client.Account.SubscriptionId
-			id := fluxconfiguration.NewFluxConfigurationID(subscriptionId, model.ResourceGroupName, model.ClusterRp, model.ClusterResourceName, model.ClusterName, model.Name)
+
+			var clusterRp string
+			if model.ClusterResourceName == "managedClusters" {
+				clusterRp = "Microsoft.ContainerService"
+			} else {
+				return fmt.Errorf("cluster resource of %s is not supported", model.ClusterResourceName)
+			}
+
+			id := fluxconfiguration.NewFluxConfigurationID(subscriptionId, model.ResourceGroupName, clusterRp, model.ClusterResourceName, model.ClusterName, model.Name)
 			existing, err := client.Get(ctx, id)
 			if err != nil && !response.WasNotFound(existing.HttpResponse) {
 				return fmt.Errorf("checking for existing %s: %+v", id, err)
@@ -655,42 +447,40 @@ func (r KubernetesConfigurationFluxConfigurationResource) Create() sdk.ResourceF
 
 			properties := &fluxconfiguration.FluxConfiguration{
 				Properties: &fluxconfiguration.FluxConfigurationProperties{
-					ConfigurationProtectedSettings: &model.ConfigurationProtectedSettings,
-					Scope:                          &model.Scope,
-					SourceKind:                     &model.SourceKind,
-					Suspend:                        &model.Suspend,
+					Scope:   &model.Scope,
+					Suspend: &model.Suspend,
 				},
 			}
 
-			azureBlobValue, err := expandAzureBlobDefinitionModel(model.AzureBlob)
-			if err != nil {
-				return err
-			}
-
-			properties.Properties.AzureBlob = azureBlobValue
-
-			bucketValue, err := expandBucketDefinitionModel(model.Bucket)
-			if err != nil {
-				return err
-			}
-
-			properties.Properties.Bucket = bucketValue
-
-			gitRepositoryValue, err := expandGitRepositoryDefinitionModel(model.GitRepository)
-			if err != nil {
-				return err
-			}
-
-			properties.Properties.GitRepository = gitRepositoryValue
-
-			if model.Kustomizations != "" {
-				var kustomizationsValue map[string]kubernetesconfiguration.KustomizationDefinition
-				err = json.Unmarshal([]byte(model.Kustomizations), &kustomizationsValue)
+			if len(model.GitRepository) > 0 {
+				sourceKind := fluxconfiguration.SourceKindTypeGitRepository
+				gitRepositoryValue, configurationProtectedSettings, err := expandGitRepositoryDefinitionModel(model.GitRepository)
 				if err != nil {
 					return err
 				}
-				properties.Properties.Kustomizations = &kustomizationsValue
+
+				properties.Properties.GitRepository = gitRepositoryValue
+				properties.Properties.SourceKind = &sourceKind
+				properties.Properties.ConfigurationProtectedSettings = configurationProtectedSettings
+			} else {
+				sourceKind := fluxconfiguration.SourceKindTypeBucket
+				properties.Properties.SourceKind = &sourceKind
+				bucketValue, configurationProtectedSettings, err := expandBucketDefinitionModel(model.Bucket)
+				if err != nil {
+					return err
+				}
+
+				properties.Properties.Bucket = bucketValue
+				properties.Properties.SourceKind = &sourceKind
+				properties.Properties.ConfigurationProtectedSettings = configurationProtectedSettings
 			}
+
+			kustomizationsValue, err := expandKustomizationDefinitionModel(model.Kustomizations)
+			if err != nil {
+				return err
+			}
+
+			properties.Properties.Kustomizations = kustomizationsValue
 
 			if model.Namespace != "" {
 				properties.Properties.Namespace = &model.Namespace
@@ -732,62 +522,53 @@ func (r KubernetesConfigurationFluxConfigurationResource) Update() sdk.ResourceF
 				return fmt.Errorf("retrieving %s: properties was nil", id)
 			}
 
-			if metadata.ResourceData.HasChange("azure_blob") {
-				azureBlobValue, err := expandAzureBlobDefinitionModel(model.AzureBlob)
-				if err != nil {
-					return err
-				}
-
-				properties.Properties.AzureBlob = azureBlobValue
-			}
-
 			if metadata.ResourceData.HasChange("bucket") {
-				bucketValue, err := expandBucketDefinitionModel(model.Bucket)
+				bucketValue, configurationProtectedSettings, err := expandBucketDefinitionModel(model.Bucket)
 				if err != nil {
 					return err
 				}
 
 				properties.Properties.Bucket = bucketValue
-			}
-
-			if metadata.ResourceData.HasChange("configuration_protected_settings") {
-				properties.Properties.ConfigurationProtectedSettings = &model.ConfigurationProtectedSettings
+				if properties.Properties.Bucket != nil {
+					properties.Properties.ConfigurationProtectedSettings = configurationProtectedSettings
+				}
 			}
 
 			if metadata.ResourceData.HasChange("git_repository") {
-				gitRepositoryValue, err := expandGitRepositoryDefinitionModel(model.GitRepository)
+				gitRepositoryValue, configurationProtectedSettings, err := expandGitRepositoryDefinitionModel(model.GitRepository)
 				if err != nil {
 					return err
 				}
 
 				properties.Properties.GitRepository = gitRepositoryValue
+				if properties.Properties.GitRepository != nil {
+					properties.Properties.ConfigurationProtectedSettings = configurationProtectedSettings
+				}
 			}
 
+			var sourceKind fluxconfiguration.SourceKindType
+			if properties.Properties.Bucket != nil {
+				sourceKind = fluxconfiguration.SourceKindTypeBucket
+			} else {
+				sourceKind = fluxconfiguration.SourceKindTypeGitRepository
+			}
+
+			properties.Properties.SourceKind = &sourceKind
+
 			if metadata.ResourceData.HasChange("kustomizations") {
-				var kustomizationsValue map[string]kubernetesconfiguration.KustomizationDefinition
-				err := json.Unmarshal([]byte(model.Kustomizations), &kustomizationsValue)
+				kustomizationsValue, err := expandKustomizationDefinitionModel(model.Kustomizations)
 				if err != nil {
 					return err
 				}
 
-				properties.Properties.Kustomizations = &kustomizationsValue
-			}
-
-			if metadata.ResourceData.HasChange("namespace") {
-				properties.Properties.Namespace = &model.Namespace
-			}
-
-			if metadata.ResourceData.HasChange("scope") {
-				properties.Properties.Scope = &model.Scope
-			}
-
-			if metadata.ResourceData.HasChange("source_kind") {
-				properties.Properties.SourceKind = &model.SourceKind
+				properties.Properties.Kustomizations = kustomizationsValue
 			}
 
 			if metadata.ResourceData.HasChange("suspend") {
 				properties.Properties.Suspend = &model.Suspend
 			}
+
+			properties.SystemData = nil
 
 			if err := client.CreateOrUpdateThenPoll(ctx, *id, *properties); err != nil {
 				return fmt.Errorf("updating %s: %+v", *id, err)
@@ -809,6 +590,11 @@ func (r KubernetesConfigurationFluxConfigurationResource) Read() sdk.ResourceFun
 				return err
 			}
 
+			var configModel KubernetesConfigurationFluxConfigurationModel
+			if err := metadata.Decode(&configModel); err != nil {
+				return fmt.Errorf("decoding: %+v", err)
+			}
+
 			resp, err := client.Get(ctx, *id)
 			if err != nil {
 				if response.WasNotFound(resp.HttpResponse) {
@@ -826,89 +612,39 @@ func (r KubernetesConfigurationFluxConfigurationResource) Read() sdk.ResourceFun
 			state := KubernetesConfigurationFluxConfigurationModel{
 				Name:                id.FluxConfigurationName,
 				ResourceGroupName:   id.ResourceGroupName,
-				ClusterRp:           id.ClusterRp,
 				ClusterResourceName: id.ClusterResourceName,
 				ClusterName:         id.ClusterName,
 			}
 
 			if properties := model.Properties; properties != nil {
-				azureBlobValue, err := flattenAzureBlobDefinitionModel(properties.AzureBlob)
-				if err != nil {
-					return err
-				}
-
-				state.AzureBlob = azureBlobValue
-
-				bucketValue, err := flattenBucketDefinitionModel(properties.Bucket)
+				bucketValue, err := flattenBucketDefinitionModel(properties.Bucket, &configModel)
 				if err != nil {
 					return err
 				}
 
 				state.Bucket = bucketValue
 
-				if properties.ComplianceState != nil {
-					state.ComplianceState = *properties.ComplianceState
-				}
-
-				if properties.ConfigurationProtectedSettings != nil {
-					state.ConfigurationProtectedSettings = *properties.ConfigurationProtectedSettings
-				}
-
-				if properties.ErrorMessage != nil {
-					state.ErrorMessage = *properties.ErrorMessage
-				}
-
-				gitRepositoryValue, err := flattenGitRepositoryDefinitionModel(properties.GitRepository)
+				gitRepositoryValue, err := flattenGitRepositoryDefinitionModel(properties.GitRepository, &configModel)
 				if err != nil {
 					return err
 				}
 
 				state.GitRepository = gitRepositoryValue
 
-				if properties.Kustomizations != nil && *properties.Kustomizations != nil {
-
-					kustomizationsValue, err := json.Marshal(*properties.Kustomizations)
-					if err != nil {
-						return err
-					}
-
-					state.Kustomizations = string(kustomizationsValue)
+				kustomizationsValue, err := flattenKustomizationDefinitionModel(properties.Kustomizations)
+				if err != nil {
+					return err
 				}
+
+				state.Kustomizations = kustomizationsValue
 
 				if properties.Namespace != nil {
 					state.Namespace = *properties.Namespace
 				}
 
-				if properties.RepositoryPublicKey != nil {
-					state.RepositoryPublicKey = *properties.RepositoryPublicKey
-				}
-
 				if properties.Scope != nil {
 					state.Scope = *properties.Scope
 				}
-
-				if properties.SourceKind != nil {
-					state.SourceKind = *properties.SourceKind
-				}
-
-				if properties.SourceSyncedCommitId != nil {
-					state.SourceSyncedCommitId = *properties.SourceSyncedCommitId
-				}
-
-				if properties.SourceUpdatedAt != nil {
-					state.SourceUpdatedAt = *properties.SourceUpdatedAt
-				}
-
-				if properties.StatusUpdatedAt != nil {
-					state.StatusUpdatedAt = *properties.StatusUpdatedAt
-				}
-
-				statusesValue, err := flattenObjectStatusDefinitionModel(properties.Statuses)
-				if err != nil {
-					return err
-				}
-
-				state.Statuses = statusesValue
 
 				if properties.Suspend != nil {
 					state.Suspend = *properties.Suspend
@@ -940,113 +676,125 @@ func (r KubernetesConfigurationFluxConfigurationResource) Delete() sdk.ResourceF
 	}
 }
 
-func expandAzureBlobDefinitionModel(inputList []AzureBlobDefinitionModel) (*fluxconfiguration.AzureBlobDefinition, error) {
+func expandKustomizationDefinitionModel(inputList []KustomizationDefinitionModel) (*map[string]fluxconfiguration.KustomizationDefinition, error) {
 	if len(inputList) == 0 {
 		return nil, nil
 	}
 
-	input := &inputList[0]
-	output := fluxconfiguration.AzureBlobDefinition{
-		AccountKey:            &input.AccountKey,
-		ContainerName:         &input.ContainerName,
-		LocalAuthRef:          &input.LocalAuthRef,
-		SasToken:              &input.SasToken,
-		SyncIntervalInSeconds: &input.SyncIntervalInSeconds,
-		TimeoutInSeconds:      &input.TimeoutInSeconds,
-		Url:                   &input.Url,
+	outputList := make(map[string]fluxconfiguration.KustomizationDefinition)
+	for _, v := range inputList {
+		input := v
+		output := fluxconfiguration.KustomizationDefinition{
+			DependsOn:              &input.DependsOn,
+			Force:                  &input.Force,
+			Name:                   &input.Name,
+			Prune:                  &input.Prune,
+			RetryIntervalInSeconds: &input.RetryIntervalInSeconds,
+			SyncIntervalInSeconds:  &input.SyncIntervalInSeconds,
+			TimeoutInSeconds:       &input.TimeoutInSeconds,
+		}
+
+		if input.Path != "" {
+			output.Path = utils.String(input.Path)
+		}
+
+		outputList[input.Name] = output
 	}
 
-	managedIdentityValue, err := expandManagedIdentityDefinitionModel(input.ManagedIdentity)
-	if err != nil {
-		return nil, err
-	}
-
-	output.ManagedIdentity = managedIdentityValue
-
-	servicePrincipalValue, err := expandServicePrincipalDefinitionModel(input.ServicePrincipal)
-	if err != nil {
-		return nil, err
-	}
-
-	output.ServicePrincipal = servicePrincipalValue
-
-	return &output, nil
+	return &outputList, nil
 }
 
-func expandManagedIdentityDefinitionModel(inputList []ManagedIdentityDefinitionModel) (*fluxconfiguration.ManagedIdentityDefinition, error) {
+func expandBucketDefinitionModel(inputList []BucketDefinitionModel) (*fluxconfiguration.BucketDefinition, *map[string]string, error) {
 	if len(inputList) == 0 {
-		return nil, nil
-	}
-
-	input := &inputList[0]
-	output := fluxconfiguration.ManagedIdentityDefinition{
-		ClientId: &input.ClientId,
-	}
-
-	return &output, nil
-}
-
-func expandServicePrincipalDefinitionModel(inputList []ServicePrincipalDefinitionModel) (*fluxconfiguration.ServicePrincipalDefinition, error) {
-	if len(inputList) == 0 {
-		return nil, nil
-	}
-
-	input := &inputList[0]
-	output := fluxconfiguration.ServicePrincipalDefinition{
-		ClientCertificate:          &input.ClientCertificate,
-		ClientCertificatePassword:  &input.ClientCertificatePassword,
-		ClientCertificateSendChain: &input.ClientCertificateSendChain,
-		ClientId:                   &input.ClientId,
-		ClientSecret:               &input.ClientSecret,
-		TenantId:                   &input.TenantId,
-	}
-
-	return &output, nil
-}
-
-func expandBucketDefinitionModel(inputList []BucketDefinitionModel) (*fluxconfiguration.BucketDefinition, error) {
-	if len(inputList) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	input := &inputList[0]
 	output := fluxconfiguration.BucketDefinition{
-		AccessKey:             &input.AccessKey,
-		BucketName:            &input.BucketName,
 		Insecure:              &input.Insecure,
-		LocalAuthRef:          &input.LocalAuthRef,
 		SyncIntervalInSeconds: &input.SyncIntervalInSeconds,
 		TimeoutInSeconds:      &input.TimeoutInSeconds,
-		Url:                   &input.Url,
 	}
 
-	return &output, nil
+	if input.AccessKey != "" {
+		output.AccessKey = &input.AccessKey
+	}
+
+	if input.BucketName != "" {
+		output.BucketName = &input.BucketName
+	}
+
+	if input.LocalAuthRef != "" {
+		output.LocalAuthRef = &input.LocalAuthRef
+	}
+
+	if input.Url != "" {
+		output.Url = &input.Url
+	}
+
+	var configSettings = make(map[string]string)
+	if input.BucketSecretKey != "" {
+		configSettings["bucketSecretKey"] = base64.StdEncoding.EncodeToString([]byte(input.BucketSecretKey))
+	}
+
+	var outputConfigSettings *map[string]string = nil
+	if len(configSettings) > 0 {
+		outputConfigSettings = &configSettings
+	}
+
+	return &output, outputConfigSettings, nil
 }
 
-func expandGitRepositoryDefinitionModel(inputList []GitRepositoryDefinitionModel) (*fluxconfiguration.GitRepositoryDefinition, error) {
+func expandGitRepositoryDefinitionModel(inputList []GitRepositoryDefinitionModel) (*fluxconfiguration.GitRepositoryDefinition, *map[string]string, error) {
 	if len(inputList) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	input := &inputList[0]
 	output := fluxconfiguration.GitRepositoryDefinition{
-		HttpsCACert:           &input.HttpsCACert,
-		HttpsUser:             &input.HttpsUser,
-		LocalAuthRef:          &input.LocalAuthRef,
-		SshKnownHosts:         &input.SshKnownHosts,
 		SyncIntervalInSeconds: &input.SyncIntervalInSeconds,
 		TimeoutInSeconds:      &input.TimeoutInSeconds,
-		Url:                   &input.Url,
+	}
+
+	if input.HttpsCACert != "" {
+		encodedValue := base64.StdEncoding.EncodeToString([]byte(input.HttpsCACert))
+		output.HttpsCACert = &encodedValue
+	}
+
+	if input.HttpsUser != "" {
+		output.HttpsUser = &input.HttpsUser
+	}
+
+	if input.LocalAuthRef != "" {
+		output.LocalAuthRef = &input.LocalAuthRef
 	}
 
 	repositoryRefValue, err := expandRepositoryRefDefinitionModel(input.RepositoryRef)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	output.RepositoryRef = repositoryRefValue
 
-	return &output, nil
+	if input.SshKnownHosts != "" {
+		encodedValue := base64.StdEncoding.EncodeToString([]byte(input.SshKnownHosts))
+		output.SshKnownHosts = &encodedValue
+	}
+
+	if input.Url != "" {
+		output.Url = &input.Url
+	}
+
+	var configSettings = make(map[string]string)
+	if input.HttpsKey != "" {
+		configSettings["httpsKey"] = base64.StdEncoding.EncodeToString([]byte(input.HttpsKey))
+	}
+
+	if input.SshPrivateKey != "" {
+		configSettings["sshPrivateKey"] = base64.StdEncoding.EncodeToString([]byte(input.SshPrivateKey))
+	}
+
+	return &output, &configSettings, nil
 }
 
 func expandRepositoryRefDefinitionModel(inputList []RepositoryRefDefinitionModel) (*fluxconfiguration.RepositoryRefDefinition, error) {
@@ -1055,120 +803,75 @@ func expandRepositoryRefDefinitionModel(inputList []RepositoryRefDefinitionModel
 	}
 
 	input := &inputList[0]
-	output := fluxconfiguration.RepositoryRefDefinition{
-		Branch: &input.Branch,
-		Commit: &input.Commit,
-		Semver: &input.Semver,
-		Tag:    &input.Tag,
+	output := fluxconfiguration.RepositoryRefDefinition{}
+
+	if input.Branch != "" {
+		output.Branch = &input.Branch
+	}
+
+	if input.Commit != "" {
+		output.Commit = &input.Commit
+	}
+
+	if input.Semver != "" {
+		output.Semver = &input.Semver
+	}
+
+	if input.Tag != "" {
+		output.Tag = &input.Tag
 	}
 
 	return &output, nil
 }
 
-func flattenAzureBlobDefinitionModel(input *fluxconfiguration.AzureBlobDefinition) ([]AzureBlobDefinitionModel, error) {
-	var outputList []AzureBlobDefinitionModel
-	if input == nil {
+func flattenKustomizationDefinitionModel(inputList *map[string]fluxconfiguration.KustomizationDefinition) ([]KustomizationDefinitionModel, error) {
+	var outputList []KustomizationDefinitionModel
+	if inputList == nil {
 		return outputList, nil
 	}
 
-	output := AzureBlobDefinitionModel{}
+	for _, input := range *inputList {
+		output := KustomizationDefinitionModel{}
 
-	if input.AccountKey != nil {
-		output.AccountKey = *input.AccountKey
+		if input.DependsOn != nil {
+			output.DependsOn = *input.DependsOn
+		}
+
+		if input.Force != nil {
+			output.Force = *input.Force
+		}
+
+		if input.Name != nil {
+			output.Name = *input.Name
+		}
+
+		if input.Path != nil {
+			output.Path = *input.Path
+		}
+
+		if input.Prune != nil {
+			output.Prune = *input.Prune
+		}
+
+		if input.RetryIntervalInSeconds != nil {
+			output.RetryIntervalInSeconds = *input.RetryIntervalInSeconds
+		}
+
+		if input.SyncIntervalInSeconds != nil {
+			output.SyncIntervalInSeconds = *input.SyncIntervalInSeconds
+		}
+
+		if input.TimeoutInSeconds != nil {
+			output.TimeoutInSeconds = *input.TimeoutInSeconds
+		}
+
+		outputList = append(outputList, output)
 	}
 
-	if input.ContainerName != nil {
-		output.ContainerName = *input.ContainerName
-	}
-
-	if input.LocalAuthRef != nil {
-		output.LocalAuthRef = *input.LocalAuthRef
-	}
-
-	managedIdentityValue, err := flattenManagedIdentityDefinitionModel(input.ManagedIdentity)
-	if err != nil {
-		return nil, err
-	}
-
-	output.ManagedIdentity = managedIdentityValue
-
-	if input.SasToken != nil {
-		output.SasToken = *input.SasToken
-	}
-
-	servicePrincipalValue, err := flattenServicePrincipalDefinitionModel(input.ServicePrincipal)
-	if err != nil {
-		return nil, err
-	}
-
-	output.ServicePrincipal = servicePrincipalValue
-
-	if input.SyncIntervalInSeconds != nil {
-		output.SyncIntervalInSeconds = *input.SyncIntervalInSeconds
-	}
-
-	if input.TimeoutInSeconds != nil {
-		output.TimeoutInSeconds = *input.TimeoutInSeconds
-	}
-
-	if input.Url != nil {
-		output.Url = *input.Url
-	}
-
-	return append(outputList, output), nil
+	return outputList, nil
 }
 
-func flattenManagedIdentityDefinitionModel(input *fluxconfiguration.ManagedIdentityDefinition) ([]ManagedIdentityDefinitionModel, error) {
-	var outputList []ManagedIdentityDefinitionModel
-	if input == nil {
-		return outputList, nil
-	}
-
-	output := ManagedIdentityDefinitionModel{}
-
-	if input.ClientId != nil {
-		output.ClientId = *input.ClientId
-	}
-
-	return append(outputList, output), nil
-}
-
-func flattenServicePrincipalDefinitionModel(input *fluxconfiguration.ServicePrincipalDefinition) ([]ServicePrincipalDefinitionModel, error) {
-	var outputList []ServicePrincipalDefinitionModel
-	if input == nil {
-		return outputList, nil
-	}
-
-	output := ServicePrincipalDefinitionModel{}
-
-	if input.ClientCertificate != nil {
-		output.ClientCertificate = *input.ClientCertificate
-	}
-
-	if input.ClientCertificatePassword != nil {
-		output.ClientCertificatePassword = *input.ClientCertificatePassword
-	}
-
-	if input.ClientCertificateSendChain != nil {
-		output.ClientCertificateSendChain = *input.ClientCertificateSendChain
-	}
-
-	if input.ClientId != nil {
-		output.ClientId = *input.ClientId
-	}
-
-	if input.ClientSecret != nil {
-		output.ClientSecret = *input.ClientSecret
-	}
-
-	if input.TenantId != nil {
-		output.TenantId = *input.TenantId
-	}
-
-	return append(outputList, output), nil
-}
-
-func flattenBucketDefinitionModel(input *fluxconfiguration.BucketDefinition) ([]BucketDefinitionModel, error) {
+func flattenBucketDefinitionModel(input *fluxconfiguration.BucketDefinition, model *KubernetesConfigurationFluxConfigurationModel) ([]BucketDefinitionModel, error) {
 	var outputList []BucketDefinitionModel
 	if input == nil {
 		return outputList, nil
@@ -1204,10 +907,14 @@ func flattenBucketDefinitionModel(input *fluxconfiguration.BucketDefinition) ([]
 		output.Url = *input.Url
 	}
 
+	if model != nil && len(model.Bucket) > 0 {
+		output.BucketSecretKey = model.Bucket[0].BucketSecretKey
+	}
+
 	return append(outputList, output), nil
 }
 
-func flattenGitRepositoryDefinitionModel(input *fluxconfiguration.GitRepositoryDefinition) ([]GitRepositoryDefinitionModel, error) {
+func flattenGitRepositoryDefinitionModel(input *fluxconfiguration.GitRepositoryDefinition, model *KubernetesConfigurationFluxConfigurationModel) ([]GitRepositoryDefinitionModel, error) {
 	var outputList []GitRepositoryDefinitionModel
 	if input == nil {
 		return outputList, nil
@@ -1216,7 +923,12 @@ func flattenGitRepositoryDefinitionModel(input *fluxconfiguration.GitRepositoryD
 	output := GitRepositoryDefinitionModel{}
 
 	if input.HttpsCACert != nil {
-		output.HttpsCACert = *input.HttpsCACert
+		decodedValue, err := base64.StdEncoding.DecodeString(*input.HttpsCACert)
+		if err != nil {
+			return nil, err
+		}
+
+		output.HttpsCACert = string(decodedValue)
 	}
 
 	if input.HttpsUser != nil {
@@ -1235,7 +947,12 @@ func flattenGitRepositoryDefinitionModel(input *fluxconfiguration.GitRepositoryD
 	output.RepositoryRef = repositoryRefValue
 
 	if input.SshKnownHosts != nil {
-		output.SshKnownHosts = *input.SshKnownHosts
+		decodedValue, err := base64.StdEncoding.DecodeString(*input.SshKnownHosts)
+		if err != nil {
+			return nil, err
+		}
+
+		output.SshKnownHosts = string(decodedValue)
 	}
 
 	if input.SyncIntervalInSeconds != nil {
@@ -1248,6 +965,11 @@ func flattenGitRepositoryDefinitionModel(input *fluxconfiguration.GitRepositoryD
 
 	if input.Url != nil {
 		output.Url = *input.Url
+	}
+
+	if model != nil && len(model.GitRepository) > 0 {
+		output.HttpsKey = model.GitRepository[0].HttpsKey
+		output.SshPrivateKey = model.GitRepository[0].SshPrivateKey
 	}
 
 	return append(outputList, output), nil
@@ -1278,144 +1000,4 @@ func flattenRepositoryRefDefinitionModel(input *fluxconfiguration.RepositoryRefD
 	}
 
 	return append(outputList, output), nil
-}
-
-func flattenObjectStatusDefinitionModel(inputList *[]fluxconfiguration.ObjectStatusDefinition) ([]ObjectStatusDefinitionModel, error) {
-	var outputList []ObjectStatusDefinitionModel
-	if inputList == nil {
-		return outputList, nil
-	}
-
-	for _, input := range *inputList {
-		output := ObjectStatusDefinitionModel{}
-
-		appliedByValue, err := flattenObjectReferenceDefinitionModel(input.AppliedBy)
-		if err != nil {
-			return nil, err
-		}
-
-		output.AppliedBy = appliedByValue
-
-		if input.ComplianceState != nil {
-			output.ComplianceState = *input.ComplianceState
-		}
-
-		helmReleasePropertiesValue, err := flattenHelmReleasePropertiesDefinitionModel(input.HelmReleaseProperties)
-		if err != nil {
-			return nil, err
-		}
-
-		output.HelmReleaseProperties = helmReleasePropertiesValue
-
-		if input.Kind != nil {
-			output.Kind = *input.Kind
-		}
-
-		if input.Name != nil {
-			output.Name = *input.Name
-		}
-
-		if input.Namespace != nil {
-			output.Namespace = *input.Namespace
-		}
-
-		statusConditionsValue, err := flattenObjectStatusConditionDefinitionModel(input.StatusConditions)
-		if err != nil {
-			return nil, err
-		}
-
-		output.StatusConditions = statusConditionsValue
-
-		outputList = append(outputList, output)
-	}
-
-	return outputList, nil
-}
-
-func flattenObjectReferenceDefinitionModel(input *fluxconfiguration.ObjectReferenceDefinition) ([]ObjectReferenceDefinitionModel, error) {
-	var outputList []ObjectReferenceDefinitionModel
-	if input == nil {
-		return outputList, nil
-	}
-
-	output := ObjectReferenceDefinitionModel{}
-
-	if input.Name != nil {
-		output.Name = *input.Name
-	}
-
-	if input.Namespace != nil {
-		output.Namespace = *input.Namespace
-	}
-
-	return append(outputList, output), nil
-}
-
-func flattenHelmReleasePropertiesDefinitionModel(input *fluxconfiguration.HelmReleasePropertiesDefinition) ([]HelmReleasePropertiesDefinitionModel, error) {
-	var outputList []HelmReleasePropertiesDefinitionModel
-	if input == nil {
-		return outputList, nil
-	}
-
-	output := HelmReleasePropertiesDefinitionModel{}
-
-	if input.FailureCount != nil {
-		output.FailureCount = *input.FailureCount
-	}
-
-	helmChartRefValue, err := flattenObjectReferenceDefinitionModel(input.HelmChartRef)
-	if err != nil {
-		return nil, err
-	}
-
-	output.HelmChartRef = helmChartRefValue
-
-	if input.InstallFailureCount != nil {
-		output.InstallFailureCount = *input.InstallFailureCount
-	}
-
-	if input.LastRevisionApplied != nil {
-		output.LastRevisionApplied = *input.LastRevisionApplied
-	}
-
-	if input.UpgradeFailureCount != nil {
-		output.UpgradeFailureCount = *input.UpgradeFailureCount
-	}
-
-	return append(outputList, output), nil
-}
-
-func flattenObjectStatusConditionDefinitionModel(inputList *[]fluxconfiguration.ObjectStatusConditionDefinition) ([]ObjectStatusConditionDefinitionModel, error) {
-	var outputList []ObjectStatusConditionDefinitionModel
-	if inputList == nil {
-		return outputList, nil
-	}
-
-	for _, input := range *inputList {
-		output := ObjectStatusConditionDefinitionModel{}
-
-		if input.LastTransitionTime != nil {
-			output.LastTransitionTime = *input.LastTransitionTime
-		}
-
-		if input.Message != nil {
-			output.Message = *input.Message
-		}
-
-		if input.Reason != nil {
-			output.Reason = *input.Reason
-		}
-
-		if input.Status != nil {
-			output.Status = *input.Status
-		}
-
-		if input.Type != nil {
-			output.Type = *input.Type
-		}
-
-		outputList = append(outputList, output)
-	}
-
-	return outputList, nil
 }

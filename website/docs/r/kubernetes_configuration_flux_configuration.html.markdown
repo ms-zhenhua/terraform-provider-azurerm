@@ -3,114 +3,81 @@ subcategory: "Kubernetes Configuration"
 layout: "azurerm"
 page_title: "Azure Resource Manager: azurerm_kubernetes_configuration_flux_configuration"
 description: |-
-  Manages a Kubernetes Configuration Flux Configuration.
+  Manages a Kubernetes Flux Configuration.
 ---
 
 # azurerm_kubernetes_configuration_flux_configuration
 
-Manages a Kubernetes Configuration Flux Configuration.
+Manages a Kubernetes Flux Configuration.
 
 ## Example Usage
 
 ```hcl
 resource "azurerm_resource_group" "example" {
-  name     = "example-resources"
+  name     = "example-resources2"
   location = "West Europe"
 }
 
+resource "azurerm_kubernetes_cluster" "example" {
+  name                = "exampleaks"
+  location            = azurerm_resource_group.example.location
+  resource_group_name = azurerm_resource_group.example.name
+  dns_prefix          = "exampleaks"
+
+  default_node_pool {
+    name       = "default"
+    node_count = 1
+    vm_size    = "Standard_DS2_v2"
+  }
+
+  identity {
+    type = "SystemAssigned"
+  }
+}
+
+resource "azurerm_resource_group_template_deployment" "example" {
+  name                = "example-template"
+  resource_group_name = azurerm_resource_group.example.name
+  deployment_mode     = "Incremental"
+  depends_on          = [azurerm_kubernetes_cluster.example]
+
+  template_content = <<TEMPLATE
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "resources": [
+     {
+      "type": "Microsoft.KubernetesConfiguration/extensions",
+      "apiVersion": "2021-09-01",
+      "name": "flux",
+      "properties": {
+        "extensionType": "microsoft.flux",
+        "autoUpgradeMinorVersion": true
+      },
+	  "scope": "Microsoft.ContainerService/managedClusters/exampleaks"
+    }
+  ]
+}
+TEMPLATE
+}
+
 resource "azurerm_kubernetes_configuration_flux_configuration" "example" {
-  name                    = "example-kcfc"
-  resource_group_name     = azurerm_resource_group.example.name
-  cluster_rp              = ""
-  cluster_resource_name   = ""
-  cluster_name            = ""
-  compliance_state        = ""
-  error_message           = ""
-  namespace               = ""
-  repository_public_key   = ""
-  scope                   = ""
-  source_kind             = ""
-  source_synced_commit_id = ""
-  source_updated_at       = ""
-  status_updated_at       = ""
-  suspend                 = false
-  azure_blob {
-    account_key              = ""
-    container_name           = ""
-    local_auth_ref           = ""
-    sas_token                = ""
-    sync_interval_in_seconds = 0
-    timeout_in_seconds       = 0
-    url                      = ""
-    managed_identity {
-      client_id = ""
-    }
-    service_principal {
-      client_certificate            = ""
-      client_certificate_password   = ""
-      client_certificate_send_chain = false
-      client_id                     = ""
-      client_secret                 = ""
-      tenant_id                     = ""
-    }
-  }
-  bucket {
-    access_key               = ""
-    bucket_name              = ""
-    insecure                 = false
-    local_auth_ref           = ""
-    sync_interval_in_seconds = 0
-    timeout_in_seconds       = 0
-    url                      = ""
-  }
+  name                = "example-fc"
+  resource_group_name = azurerm_resource_group.example.name
+  cluster_name        = azurerm_kubernetes_cluster.example.name
+
   git_repository {
-    https_ca_cert            = ""
-    https_user               = ""
-    local_auth_ref           = ""
-    ssh_known_hosts          = ""
-    sync_interval_in_seconds = 0
-    timeout_in_seconds       = 0
-    url                      = ""
+    url = "https://github.com/Azure/arc-k8s-demo"
     repository_ref {
-      branch = ""
-      commit = ""
-      semver = ""
-      tag    = ""
+      branch = "main"
     }
   }
-  statuses {
-    compliance_state = ""
-    kind             = ""
-    name             = ""
-    namespace        = ""
-    applied_by {
-      name      = ""
-      namespace = ""
-    }
-    helm_release_properties {
-      failure_count         = 0
-      install_failure_count = 0
-      last_revision_applied = 0
-      upgrade_failure_count = 0
-      helm_chart_ref {
-        name      = ""
-        namespace = ""
-      }
-    }
-    status_conditions {
-      last_transition_time = ""
-      message              = ""
-      reason               = ""
-      status               = ""
-      type                 = ""
-    }
+
+  kustomizations {
+    name = "kustomization-1"
   }
-  kustomizations = jsonencode({
-    "key" : {}
-  })
-  configuration_protected_settings = {
-    key = ""
-  }
+
+  depends_on = [azurerm_resource_group_template_deployment.example]
 }
 ```
 
@@ -118,113 +85,91 @@ resource "azurerm_kubernetes_configuration_flux_configuration" "example" {
 
 The following arguments are supported:
 
-* `name` - (Required) Specifies the name which should be used for this Kubernetes Configuration Flux Configuration. Changing this forces a new Kubernetes Configuration Flux Configuration to be created.
+* `name` - (Required) Specifies the name which should be used for this Kubernetes Flux Configuration. It must be between 1 and 30 characters. It can contain only lowercase letters, numbers, and hyphens (-). It must start and end with a lowercase letter or number. Changing this forces a new Kubernetes Flux Configuration to be created.
 
-* `resource_group_name` - (Required) Specifies the name of the Resource Group where the Kubernetes Configuration Flux Configuration should exist. Changing this forces a new Kubernetes Configuration Flux Configuration to be created.
+* `resource_group_name` - (Required) Specifies the name of the Resource Group where the Kubernetes Flux Configuration should exist. Changing this forces a new Kubernetes Flux Configuration to be created.
 
-* `cluster_rp` - (Required) Specifies the Cluster Rp. Changing this forces a new Kubernetes Configuration Flux Configuration to be created.
+* `cluster_name` - (Required) Specifies the Cluster Name. Changing this forces a new Kubernetes Flux Configuration to be created.
 
-* `cluster_resource_name` - (Required) Specifies the Cluster Resource Name. Changing this forces a new Kubernetes Configuration Flux Configuration to be created.
+* `kustomizations` - (Required) A `kustomizations` block as defined below.
 
-* `cluster_name` - (Required) Specifies the Cluster Name. Changing this forces a new Kubernetes Configuration Flux Configuration to be created.
-
-* `azure_blob` - (Optional) An `azure_blob` block as defined below.
+* `cluster_resource_name` - (Optional) Specifies the Cluster Resource Name. The only possible value is `managedClusters`. Defaults to `managedClusters`. Changing this forces a new Kubernetes Flux Configuration to be created.
 
 * `bucket` - (Optional) A `bucket` block as defined below.
 
-* `configuration_protected_settings` - (Optional) Key-value pairs of protected configuration settings for the configuration.
-
 * `git_repository` - (Optional) A `git_repository` block as defined below.
 
-* `kustomizations` - (Optional) Array of kustomizations used to reconcile the artifact pulled by the source type on the cluster.
+* `namespace` - (Optional) Specifies the namespace to which this configuration is installed to. It must be between 1 and 63 characters. It can contain only lowercase letters, numbers, and hyphens (-). It must start and end with a lowercase letter or number. Changing this forces a new Kubernetes Flux Configuration to be created.
 
-* `namespace` - (Optional) Specifies the namespace to which this configuration is installed to. Maximum of 253 lower case alphanumeric characters, hyphen and period only. Changing this forces a new Kubernetes Configuration Flux Configuration to be created.
+* `scope` - (Optional) Scope at which the operator will be installed. Defaults to `namespace`. Changing this forces a new Kubernetes Flux Configuration to be created.
 
-* `scope` - (Optional) Scope at which the operator will be installed. Changing this forces a new Kubernetes Configuration Flux Configuration to be created.
-
-* `source_kind` - (Optional) Source Kind to pull the configuration data from.
-
-* `statuses` - (Optional) A `statuses` block as defined below.
-
-* `suspend` - (Optional) Whether this configuration should suspend its reconciliation of its kustomizations and sources.
+* `suspend` - (Optional) Whether this configuration should suspend its reconciliation of its kustomizations and sources. Defaults to `false`.
 
 ---
 
-An `azure_blob` block supports the following:
+A `kustomizations` block supports the following:
 
-* `account_key` - (Optional) Specifies the account key (shared key) to access the storage account.
+* `name` - (Required) Specifies the name of the Kustomization. It must be between 1 and 30 characters. It can contain only lowercase letters, numbers, and hyphens (-). It must start and end with a lowercase letter or number.
 
-* `container_name` - (Optional) Specifies the Azure Blob container name to sync from the url endpoint for the flux configuration.
+* `path` - (Optional) Specifies the path in the source reference to reconcile on the cluster.
 
-* `local_auth_ref` - (Optional) Name of a local secret on the Kubernetes cluster to use as the authentication secret rather than the managed or user-provided configuration secrets.
+* `timeout_in_seconds` - (Optional) The maximum time to attempt to reconcile the Kustomization on the cluster. Defaults to `600`.
 
-* `managed_identity` - (Optional) A `managed_identity` block as defined below.
+* `sync_interval_in_seconds` - (Optional) The interval at which to re-reconcile the Kustomization on the cluster. Defaults to `600`.
 
-* `sas_token` - (Optional) Specifies the Shared Access token to access the storage container.
+* `retry_interval_in_seconds` - (Optional) The interval at which to re-reconcile the Kustomization on the cluster in the event of failure on reconciliation. Defaults to `600`.
 
-* `service_principal` - (Optional) A `service_principal` block as defined below.
+* `force` - (Optional) Whether enable re-creating Kubernetes resources on the cluster when patching fails due to an immutable field change. Defaults to `false`.
 
-* `sync_interval_in_seconds` - (Optional) Specifies the interval at which to re-reconcile the cluster Azure Blob source with the remote.
+* `prune` - (Optional) Whether enable garbage collections of Kubernetes objects created by this Kustomization. Defaults to `false`.
 
-* `timeout_in_seconds` - (Optional) Specifies the maximum time to attempt to reconcile the cluster Azure Blob source with the remote.
-
-* `url` - (Optional) Specifies the URL to sync for the flux configuration Azure Blob storage account.
-
-A `managed_identity` block supports the following:
-
-* `client_id` - (Optional) Specifies the client Id for authenticating a Managed Identity.
-
-A `service_principal` block supports the following:
-
-* `client_certificate` - (Optional) Base64-encoded certificate used to authenticate a Service Principal .
-
-* `client_certificate_password` - (Optional) Specifies the password for the certificate used to authenticate a Service Principal .
-
-* `client_certificate_send_chain` - (Optional) Specifies whether to include x5c header in client claims when acquiring a token to enable subject name / issuer based authentication for the Client Certificate.
-
-* `client_id` - (Optional) Specifies the client Id for authenticating a Service Principal.
-
-* `client_secret` - (Optional) Specifies the client secret for authenticating a Service Principal.
-
-* `tenant_id` - (Optional) Specifies the tenant Id for authenticating a Service Principal.
+* `depends_on` - (Optional) Specifies other Kustomizations that this Kustomization depends on. This Kustomization will not reconcile until all dependencies have completed their reconciliation.
 
 ---
 
 A `bucket` block supports the following:
 
+* `bucket_name` - (Required) Specifies the bucket name to sync from the url endpoint for the flux configuration. It must be between 1 and 63 characters. It can contain only lowercase letters, numbers, and hyphens (-). It must start and end with a lowercase letter or number.
+
+* `url` - (Required) Specifies the URL to sync for the flux configuration S3 bucket. It must start with `http://` or `https://`.
+
 * `access_key` - (Optional) Plaintext access key used to securely access the S3 bucket.
 
-* `bucket_name` - (Optional) Specifies the bucket name to sync from the url endpoint for the flux configuration.
+* `bucket_secret_key` - (Optional) Secret key used to authenticate with the bucket source.
 
-* `insecure` - (Optional) Specify whether to use insecure communication when puling data from the S3 bucket.
+* `insecure` - (Optional) Specify whether to use insecure communication when puling data from the S3 bucket. Defaults to `false`.
 
-* `local_auth_ref` - (Optional) Name of a local secret on the Kubernetes cluster to use as the authentication secret rather than the managed or user-provided configuration secrets.
+* `local_auth_ref` - (Optional) Name of a local secret on the Kubernetes cluster to use as the authentication secret rather than the managed or user-provided configuration secrets. It must be between 1 and 63 characters. It can contain only lowercase letters, numbers, and hyphens (-). It must start and end with a lowercase letter or number.
 
-* `sync_interval_in_seconds` - (Optional) Specifies the interval at which to re-reconcile the cluster bucket source with the remote.
+* `sync_interval_in_seconds` - (Optional) Specifies the interval at which to re-reconcile the cluster git repository source with the remote. Defaults to `600`.
 
-* `timeout_in_seconds` - (Optional) Specifies the maximum time to attempt to reconcile the cluster bucket source with the remote.
-
-* `url` - (Optional) Specifies the URL to sync for the flux configuration S3 bucket.
+* `timeout_in_seconds` - (Optional) Specifies the maximum time to attempt to reconcile the cluster git repository source with the remote. Defaults to `600`.
 
 ---
 
 A `git_repository` block supports the following:
 
-* `https_ca_cert` - (Optional) Base64-encoded HTTPS certificate authority contents used to access git private git repositories over HTTPS.
+* `url` - (Required) Specifies the URL to sync for the flux configuration git repository. It must start with `http://`, `https://`, `git@`, or `ssh://`.
+
+* `repository_ref` - (Required) A `repository_ref` block as defined below.
+
+* `https_ca_cert` - (Optional) Plaintext HTTPS certificate authority contents used to access git private git repositories over HTTPS.
 
 * `https_user` - (Optional) Plaintext HTTPS username used to access private git repositories over HTTPS.
 
-* `local_auth_ref` - (Optional) Name of a local secret on the Kubernetes cluster to use as the authentication secret rather than the managed or user-provided configuration secrets.
+* `https_key` - (Optional) Plaintext HTTPS personal access token or password that will be used to access the repository.
 
-* `repository_ref` - (Optional) A `repository_ref` block as defined below.
+* `local_auth_ref` - (Optional) Name of a local secret on the Kubernetes cluster to use as the authentication secret rather than the managed or user-provided configuration secrets. It must be between 1 and 63 characters. It can contain only lowercase letters, numbers, and hyphens (-). It must start and end with a lowercase letter or number.
 
-* `ssh_known_hosts` - (Optional) Base64-encoded known_hosts value containing public SSH keys required to access private git repositories over SSH.
+* `ssh_private_key` - (Optional) Plaintext SSH private key in PEM format.
 
-* `sync_interval_in_seconds` - (Optional) Specifies the interval at which to re-reconcile the cluster git repository source with the remote.
+* `ssh_known_hosts` - (Optional) Plaintext known_hosts value containing public SSH keys required to access private git repositories over SSH.
 
-* `timeout_in_seconds` - (Optional) Specifies the maximum time to attempt to reconcile the cluster git repository source with the remote.
+* `sync_interval_in_seconds` - (Optional) Specifies the interval at which to re-reconcile the cluster git repository source with the remote. Defaults to `600`.
 
-* `url` - (Optional) Specifies the URL to sync for the flux configuration git repository.
+* `timeout_in_seconds` - (Optional) Specifies the maximum time to attempt to reconcile the cluster git repository source with the remote. Defaults to `600`.
+
+---
 
 A `repository_ref` block supports the following:
 
@@ -236,91 +181,25 @@ A `repository_ref` block supports the following:
 
 * `tag` - (Optional) Specifies the git repository tag name to checkout. This takes precedence over branch.
 
----
-
-A `statuses` block supports the following:
-
-* `applied_by` - (Optional) An `applied_by` block as defined below.
-
-* `compliance_state` - (Optional) Compliance state of the applied object showing whether the applied object has come into a ready state on the cluster.
-
-* `helm_release_properties` - (Optional) A `helm_release_properties` block as defined below.
-
-* `kind` - (Optional) Kind of the applied object.
-
-* `name` - (Optional) Name of the applied object.
-
-* `namespace` - (Optional) Namespace of the applied object.
-
-* `status_conditions` - (Optional) A `status_conditions` block as defined below.
-
-An `applied_by` block supports the following:
-
-* `name` - (Optional) Name of the object.
-
-* `namespace` - (Optional) Namespace of the object.
-
-A `helm_release_properties` block supports the following:
-
-* `failure_count` - (Optional) Total number of times that the HelmRelease failed to install or upgrade.
-
-* `helm_chart_ref` - (Optional) A `helm_chart_ref` block as defined below.
-
-* `install_failure_count` - (Optional) Number of times that the HelmRelease failed to install.
-
-* `last_revision_applied` - (Optional) Specifies the revision number of the last released object change.
-
-* `upgrade_failure_count` - (Optional) Number of times that the HelmRelease failed to upgrade.
-
-A `helm_chart_ref` block supports the following:
-
-* `name` - (Optional) Name of the object.
-
-* `namespace` - (Optional) Namespace of the object.
-
-A `status_conditions` block supports the following:
-
-* `last_transition_time` - (Optional) Last time this status condition has changed.
-
-* `message` - (Optional) A more verbose description of the object status condition.
-
-* `reason` - (Optional) Reason for the specified status condition type status.
-
-* `status` - (Optional) Status of the Kubernetes object condition type.
-
-* `type` - (Optional) Object status condition type for this object.
-
 ## Attributes Reference
 
 In addition to the Arguments listed above - the following Attributes are exported:
 
-* `id` - The ID of the Kubernetes Configuration Flux Configuration.
-
-* `compliance_state` - Combined status of the Flux Kubernetes resources created by the fluxConfiguration or created by the managed objects.
-
-* `error_message` - Error message returned to the user in the case of provisioning failure.
-
-* `repository_public_key` - Public Key associated with this fluxConfiguration (either generated within the cluster or provided by the user).
-
-* `source_synced_commit_id` - Branch and/or SHA of the source commit synced with the cluster.
-
-* `source_updated_at` - Datetime the fluxConfiguration synced its source on the cluster.
-
-* `status_updated_at` - Datetime the fluxConfiguration synced its status on the cluster with Azure.
+* `id` - The ID of the Kubernetes Flux Configuration.
 
 ## Timeouts
 
 The `timeouts` block allows you to specify [timeouts](https://www.terraform.io/docs/configuration/resources.html#timeouts) for certain actions:
 
-* `create` - (Defaults to 30 minutes) Used when creating the Kubernetes Configuration Flux Configuration.
-* `read` - (Defaults to 5 minutes) Used when retrieving the Kubernetes Configuration Flux Configuration.
-* `update` - (Defaults to 30 minutes) Used when updating the Kubernetes Configuration Flux Configuration.
-* `delete` - (Defaults to 30 minutes) Used when deleting the Kubernetes Configuration Flux Configuration.
+* `create` - (Defaults to 30 minutes) Used when creating the Kubernetes Flux Configuration.
+* `read` - (Defaults to 5 minutes) Used when retrieving the Kubernetes Flux Configuration.
+* `update` - (Defaults to 30 minutes) Used when updating the Kubernetes Flux Configuration.
+* `delete` - (Defaults to 30 minutes) Used when deleting the Kubernetes Flux Configuration.
 
 ## Import
 
-Kubernetes Configuration Flux Configuration can be imported using the `resource id`, e.g.
+Kubernetes Flux Configuration can be imported using the `resource id`, e.g.
 
 ```shell
-terraform import azurerm_kubernetes_configuration_flux_configuration.example /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/resourceGroup1/providers/{clusterRp}/clusterResource1/cluster1/providers/Microsoft.KubernetesConfiguration/fluxConfigurations/fluxConfiguration1
+terraform import azurerm_kubernetes_configuration_flux_configuration.example /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/resourceGroup1/providers/{clusterRp}/{clusterResourceName}/cluster1/providers/Microsoft.KubernetesConfiguration/fluxConfigurations/fluxConfiguration1
 ```
