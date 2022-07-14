@@ -379,6 +379,8 @@ A `path_rule` block supports the following:
 
 * `backend_http_settings_name` - (Optional) The Name of the Backend HTTP Settings Collection to use for this Path Rule. Cannot be set if `redirect_configuration_name` is set.
 
+* `load_distribution_policy_name` - (Optional) The Name of the Load Distribution Policy to use for this Path Rule.
+
 * `redirect_configuration_name` - (Optional) The Name of a Redirect Configuration to use for this Path Rule. Cannot be set if `backend_address_pool_name` or `backend_http_settings_name` is set.
 
 * `rewrite_rule_set_name` - (Optional) The Name of the Rewrite Rule Set which should be used for this URL Path Map. Only valid for v2 SKUs.
@@ -424,6 +426,8 @@ A `request_routing_rule` block supports the following:
 * `backend_address_pool_name` - (Optional) The Name of the Backend Address Pool which should be used for this Routing Rule. Cannot be set if `redirect_configuration_name` is set.
 
 * `backend_http_settings_name` - (Optional) The Name of the Backend HTTP Settings Collection which should be used for this Routing Rule. Cannot be set if `redirect_configuration_name` is set.
+
+* `load_distribution_policy_name` - (Optional) The Name of the Load Distribution Policy which should be used for this Routing Rule.
 
 * `redirect_configuration_name` - (Optional) The Name of the Redirect Configuration which should be used for this Routing Rule. Cannot be set if either `backend_address_pool_name` or `backend_http_settings_name` is set.
 
@@ -480,6 +484,8 @@ A `url_path_map` block supports the following:
 * `default_backend_address_pool_name` - (Optional) The Name of the Default Backend Address Pool which should be used for this URL Path Map. Cannot be set if `default_redirect_configuration_name` is set.
 
 * `default_backend_http_settings_name` - (Optional) The Name of the Default Backend HTTP Settings Collection which should be used for this URL Path Map. Cannot be set if `default_redirect_configuration_name` is set.
+
+* `default_load_distribution_policy_name` - (Optional) The Name of the Default Load Distribution Policy which should be used for this URL Path Map.
 
 * `default_redirect_configuration_name` - (Optional) The Name of the Default Redirect Configuration which should be used for this URL Path Map. Cannot be set if either `default_backend_address_pool_name` or `default_backend_http_settings_name` is set.
 
@@ -775,6 +781,8 @@ A `path_rule` block exports the following:
 
 * `backend_http_settings_id` - The ID of the Backend HTTP Settings Collection used in this Path Rule.
 
+* `load_distribution_policy_id` - The ID of the Load Distribution Policy used in this Path Rule.
+
 * `redirect_configuration_id` - The ID of the Redirect Configuration used in this Path Rule.
 
 * `rewrite_rule_set_id` - The ID of the Rewrite Rule Set used in this Path Rule.
@@ -811,6 +819,8 @@ A `request_routing_rule` block exports the following:
 
 * `backend_http_settings_id` - The ID of the associated Backend HTTP Settings Configuration.
 
+* `load_distribution_policy_id` - The ID of the associated Load Distribution Policy.
+
 * `redirect_configuration_id` - The ID of the associated Redirect Configuration.
 
 * `rewrite_rule_set_id` - The ID of the associated Rewrite Rule Set.
@@ -834,6 +844,8 @@ A `url_path_map` block exports the following:
 * `default_backend_address_pool_id` - The ID of the Default Backend Address Pool.
 
 * `default_backend_http_settings_id` - The ID of the Default Backend HTTP Settings Collection.
+
+* `default_load_distribution_policy_id` - The ID of the Default Load Distribution Policy.
 
 * `default_redirect_configuration_id` - The ID of the Default Redirect Configuration.
 

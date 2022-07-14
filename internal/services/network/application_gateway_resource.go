@@ -662,6 +662,12 @@ func resourceApplicationGateway() *pluginsdk.Resource {
 							Optional: true,
 						},
 
+						"load_distribution_policy_name": {
+							Type:         pluginsdk.TypeString,
+							Optional:     true,
+							ValidateFunc: validation.StringIsNotEmpty,
+						},
+
 						"url_path_map_name": {
 							Type:     pluginsdk.TypeString,
 							Optional: true,
@@ -691,6 +697,11 @@ func resourceApplicationGateway() *pluginsdk.Resource {
 						},
 
 						"backend_http_settings_id": {
+							Type:     pluginsdk.TypeString,
+							Computed: true,
+						},
+
+						"load_distribution_policy_id": {
 							Type:     pluginsdk.TypeString,
 							Computed: true,
 						},
@@ -1007,6 +1018,67 @@ func resourceApplicationGateway() *pluginsdk.Resource {
 				Set: applicationGatewayProbeHash,
 			},
 
+			"load_distribution_policy": {
+				Type:     pluginsdk.TypeList,
+				Optional: true,
+				Elem: &pluginsdk.Resource{
+					Schema: map[string]*pluginsdk.Schema{
+						"name": {
+							Type:         pluginsdk.TypeString,
+							Required:     true,
+							ValidateFunc: validation.StringIsNotEmpty,
+						},
+
+						"load_distribution_algorithm": {
+							Type:     pluginsdk.TypeString,
+							Required: true,
+							ValidateFunc: validation.StringInSlice([]string{
+								string(network.ApplicationGatewayLoadDistributionAlgorithmIPHash),
+								string(network.ApplicationGatewayLoadDistributionAlgorithmLeastConnections),
+								string(network.ApplicationGatewayLoadDistributionAlgorithmRoundRobin),
+							}, false),
+						},
+
+						"load_distribution_target": {
+							Type:     pluginsdk.TypeList,
+							Required: true,
+							MinItems: 1,
+							Elem: &pluginsdk.Resource{
+								Schema: map[string]*pluginsdk.Schema{
+									"name": {
+										Type:         pluginsdk.TypeString,
+										Required:     true,
+										ValidateFunc: validation.StringIsNotEmpty,
+									},
+
+									"backend_address_pool_name": {
+										Type:         pluginsdk.TypeString,
+										Required:     true,
+										ValidateFunc: validation.StringIsNotEmpty,
+									},
+
+									"weight_per_server": {
+										Type:         pluginsdk.TypeInt,
+										Required:     true,
+										ValidateFunc: validation.IntBetween(1, 100),
+									},
+
+									"id": {
+										Type:     pluginsdk.TypeString,
+										Computed: true,
+									},
+								},
+							},
+						},
+
+						"id": {
+							Type:     pluginsdk.TypeString,
+							Computed: true,
+						},
+					},
+				},
+			},
+
 			"rewrite_rule_set": {
 				Type:     pluginsdk.TypeList,
 				Optional: true,
@@ -1255,6 +1327,12 @@ func resourceApplicationGateway() *pluginsdk.Resource {
 							Optional: true,
 						},
 
+						"default_load_distribution_policy_name": {
+							Type:         pluginsdk.TypeString,
+							Optional:     true,
+							ValidateFunc: validation.StringIsNotEmpty,
+						},
+
 						"default_redirect_configuration_name": {
 							Type:         pluginsdk.TypeString,
 							Optional:     true,
@@ -1295,6 +1373,12 @@ func resourceApplicationGateway() *pluginsdk.Resource {
 										Optional: true,
 									},
 
+									"load_distribution_policy_name": {
+										Type:         pluginsdk.TypeString,
+										Optional:     true,
+										ValidateFunc: validation.StringIsNotEmpty,
+									},
+
 									"redirect_configuration_name": {
 										Type:         pluginsdk.TypeString,
 										Optional:     true,
@@ -1313,6 +1397,11 @@ func resourceApplicationGateway() *pluginsdk.Resource {
 									},
 
 									"backend_http_settings_id": {
+										Type:     pluginsdk.TypeString,
+										Computed: true,
+									},
+
+									"load_distribution_policy_id": {
 										Type:     pluginsdk.TypeString,
 										Computed: true,
 									},
@@ -1347,6 +1436,11 @@ func resourceApplicationGateway() *pluginsdk.Resource {
 						},
 
 						"default_backend_http_settings_id": {
+							Type:     pluginsdk.TypeString,
+							Computed: true,
+						},
+
+						"default_load_distribution_policy_id": {
 							Type:     pluginsdk.TypeString,
 							Computed: true,
 						},
@@ -1589,6 +1683,11 @@ func resourceApplicationGatewayCreate(d *pluginsdk.ResourceData, meta interface{
 		return fmt.Errorf("fail to expand `http_listener`: %+v", err)
 	}
 
+	loadDistributionPolicies, err := expandApplicationGatewayLoadDistributionPolicies(d.Get("load_distribution_policy").([]interface{}), id.ID())
+	if err != nil {
+		return fmt.Errorf("fail to expand `load_distribution_policy`: %+v", err)
+	}
+
 	rewriteRuleSets, err := expandApplicationGatewayRewriteRuleSets(d)
 	if err != nil {
 		return fmt.Errorf("expanding `rewrite_rule_set`: %v", err)
@@ -1610,6 +1709,7 @@ func resourceApplicationGatewayCreate(d *pluginsdk.ResourceData, meta interface{
 			GatewayIPConfigurations:       gatewayIPConfigurations,
 			GlobalConfiguration:           globalConfiguration,
 			HTTPListeners:                 httpListeners,
+			LoadDistributionPolicies:      loadDistributionPolicies,
 			PrivateLinkConfigurations:     expandApplicationGatewayPrivateLinkConfigurations(d),
 			Probes:                        expandApplicationGatewayProbes(d),
 			RequestRoutingRules:           requestRoutingRules,
@@ -1833,6 +1933,15 @@ func resourceApplicationGatewayUpdate(d *pluginsdk.ResourceData, meta interface{
 		}
 
 		applicationGateway.ApplicationGatewayPropertiesFormat.HTTPListeners = httpListeners
+	}
+
+	if d.HasChange("load_distribution_policy") {
+		loadDistributionPolicies, err := expandApplicationGatewayLoadDistributionPolicies(d.Get("load_distribution_policy").([]interface{}), id.ID())
+		if err != nil {
+			return fmt.Errorf("fail to expand `load_distribution_policy`: %+v", err)
+		}
+
+		applicationGateway.ApplicationGatewayPropertiesFormat.LoadDistributionPolicies = loadDistributionPolicies
 	}
 
 	if d.HasChange("rewrite_rule_set") {
@@ -2067,6 +2176,15 @@ func resourceApplicationGatewayRead(d *pluginsdk.ResourceData, meta interface{})
 		}
 		if setErr := d.Set("http_listener", httpListeners); setErr != nil {
 			return fmt.Errorf("setting `http_listener`: %+v", setErr)
+		}
+
+		loadDistributionPolicies, err := flattenApplicationGatewayLoadDistributionPolicies(props.LoadDistributionPolicies)
+		if err != nil {
+			return fmt.Errorf("flattening `load_distribution_policy`: %+v", err)
+		}
+
+		if setErr := d.Set("load_distribution_policy", loadDistributionPolicies); setErr != nil {
+			return fmt.Errorf("setting `load_distribution_policy`: %+v", setErr)
 		}
 
 		if setErr := d.Set("frontend_port", flattenApplicationGatewayFrontendPorts(props.FrontendPorts)); setErr != nil {
@@ -2919,6 +3037,139 @@ func flattenApplicationGatewayHTTPListeners(input *[]network.ApplicationGatewayH
 	return results, nil
 }
 
+func expandApplicationGatewayLoadDistributionPolicies(inputList []interface{}, gatewayID string) (*[]network.ApplicationGatewayLoadDistributionPolicy, error) {
+	if len(inputList) == 0 {
+		return nil, nil
+	}
+
+	outputList := make([]network.ApplicationGatewayLoadDistributionPolicy, 0)
+	for _, raw := range inputList {
+		v := raw.(map[string]interface{})
+		output := network.ApplicationGatewayLoadDistributionPolicy{
+			Name: utils.String(v["name"].(string)),
+			ApplicationGatewayLoadDistributionPolicyPropertiesFormat: &network.ApplicationGatewayLoadDistributionPolicyPropertiesFormat{
+				LoadDistributionAlgorithm: (network.ApplicationGatewayLoadDistributionAlgorithm)(v["load_distribution_algorithm"].(string)),
+			},
+		}
+
+		loadDistributionTargets, err := expandApplicationGatewayLoadDistributionTargets(v["load_distribution_target"].([]interface{}), gatewayID)
+		if err != nil {
+			return nil, err
+		}
+
+		output.ApplicationGatewayLoadDistributionPolicyPropertiesFormat.LoadDistributionTargets = loadDistributionTargets
+
+		outputList = append(outputList, output)
+	}
+
+	return &outputList, nil
+}
+
+func flattenApplicationGatewayLoadDistributionPolicies(input *[]network.ApplicationGatewayLoadDistributionPolicy) ([]interface{}, error) {
+	outputList := make([]interface{}, 0)
+	if input == nil {
+		return outputList, nil
+	}
+
+	for _, v := range *input {
+		output := map[string]interface{}{}
+
+		if v.Name != nil {
+			output["name"] = *v.Name
+		}
+
+		if v.ApplicationGatewayLoadDistributionPolicyPropertiesFormat != nil {
+			output["load_distribution_algorithm"] = v.ApplicationGatewayLoadDistributionPolicyPropertiesFormat.LoadDistributionAlgorithm
+
+			loadDistributionTargets, err := flattenApplicationGatewayLoadDistributionTargets(v.ApplicationGatewayLoadDistributionPolicyPropertiesFormat.LoadDistributionTargets)
+			if err != nil {
+				return nil, err
+			}
+
+			output["load_distribution_target"] = loadDistributionTargets
+		}
+
+		if v.ID != nil {
+			output["id"] = *v.ID
+		}
+
+		outputList = append(outputList, output)
+	}
+
+	return outputList, nil
+}
+
+func expandApplicationGatewayLoadDistributionTargets(inputList []interface{}, gatewayID string) (*[]network.ApplicationGatewayLoadDistributionTarget, error) {
+	if len(inputList) == 0 {
+		return nil, nil
+	}
+
+	parsedGatewayID, err := parse.ApplicationGatewayID(gatewayID)
+	if err != nil {
+		return nil, err
+	}
+
+	outputList := make([]network.ApplicationGatewayLoadDistributionTarget, 0)
+	for _, raw := range inputList {
+		v := raw.(map[string]interface{})
+
+		backendAddressPoolID := parse.NewBackendAddressPoolID(parsedGatewayID.SubscriptionId, parsedGatewayID.ResourceGroup, parsedGatewayID.Name, v["backend_address_pool_name"].(string))
+
+		output := network.ApplicationGatewayLoadDistributionTarget{
+			Name: utils.String(v["name"].(string)),
+			ApplicationGatewayLoadDistributionTargetPropertiesFormat: &network.ApplicationGatewayLoadDistributionTargetPropertiesFormat{
+				WeightPerServer: utils.Int32(v["weight_per_server"].(int32)),
+				BackendAddressPool: &network.SubResource{
+					ID: utils.String(backendAddressPoolID.ID()),
+				},
+			},
+		}
+
+		outputList = append(outputList, output)
+	}
+
+	return &outputList, nil
+}
+
+func flattenApplicationGatewayLoadDistributionTargets(input *[]network.ApplicationGatewayLoadDistributionTarget) ([]interface{}, error) {
+	outputList := make([]interface{}, 0)
+	if input == nil {
+		return outputList, nil
+	}
+
+	for _, v := range *input {
+		output := map[string]interface{}{}
+
+		if v.Name != nil {
+			output["name"] = *v.Name
+		}
+
+		if v.ApplicationGatewayLoadDistributionTargetPropertiesFormat != nil {
+			if v.ApplicationGatewayLoadDistributionTargetPropertiesFormat.BackendAddressPool != nil &&
+				v.ApplicationGatewayLoadDistributionTargetPropertiesFormat.BackendAddressPool.ID != nil {
+				backendAddressPoolID, err := parse.BackendAddressPoolID(*v.ApplicationGatewayLoadDistributionTargetPropertiesFormat.BackendAddressPool.ID)
+				if err != nil {
+					return nil, nil
+				}
+
+				output["backend_address_pool_name"] = backendAddressPoolID.Name
+			}
+
+			if v.ApplicationGatewayLoadDistributionTargetPropertiesFormat.WeightPerServer != nil {
+				output["weight_per_server"] = *v.ApplicationGatewayLoadDistributionTargetPropertiesFormat.WeightPerServer
+			}
+
+			if v.ID != nil {
+				output["id"] = *v.ID
+			}
+		}
+
+		outputList = append(outputList, output)
+	}
+
+	return outputList, nil
+}
+
 func expandApplicationGatewayIPConfigurations(d *pluginsdk.ResourceData) (*[]network.ApplicationGatewayIPConfiguration, bool) {
 	vs := d.Get("gateway_ip_configuration").([]interface{})
 	results := make([]network.ApplicationGatewayIPConfiguration, 0)
@@ -3436,6 +3687,7 @@ func expandApplicationGatewayRequestRoutingRules(d *pluginsdk.ResourceData, gate
 		httpListenerID := fmt.Sprintf("%s/httpListeners/%s", gatewayID, httpListenerName)
 		backendAddressPoolName := v["backend_address_pool_name"].(string)
 		backendHTTPSettingsName := v["backend_http_settings_name"].(string)
+		loadDistributionPolicyName := v["load_distribution_policy_name"].(string)
 		redirectConfigName := v["redirect_configuration_name"].(string)
 		priority := int32(v["priority"].(int))
 
@@ -3468,6 +3720,13 @@ func expandApplicationGatewayRequestRoutingRules(d *pluginsdk.ResourceData, gate
 			backendHTTPSettingsID := fmt.Sprintf("%s/backendHttpSettingsCollection/%s", gatewayID, backendHTTPSettingsName)
 			rule.ApplicationGatewayRequestRoutingRulePropertiesFormat.BackendHTTPSettings = &network.SubResource{
 				ID: utils.String(backendHTTPSettingsID),
+			}
+		}
+
+		if loadDistributionPolicyName != "" {
+			loadDistributionPolicyID := fmt.Sprintf("%s/loadDistributionPolicies/%s", gatewayID, loadDistributionPolicyName)
+			rule.ApplicationGatewayRequestRoutingRulePropertiesFormat.LoadDistributionPolicy = &network.SubResource{
+				ID: utils.String(loadDistributionPolicyID),
 			}
 		}
 
@@ -3566,6 +3825,18 @@ func flattenApplicationGatewayRequestRoutingRules(input *[]network.ApplicationGa
 					}
 					output["http_listener_id"] = listenerId.ID()
 					output["http_listener_name"] = listenerId.Name
+				}
+			}
+
+			if loadDistributionPolicy := props.LoadDistributionPolicy; loadDistributionPolicy != nil {
+				if loadDistributionPolicy.ID != nil {
+					loadDistributionPolicyId, err := parse.LoadDistributionPolicyID(*loadDistributionPolicy.ID)
+					if err != nil {
+						return nil, err
+					}
+
+					output["load_distribution_policy_name"] = loadDistributionPolicyId.Name
+					output["load_distribution_policy_id"] = loadDistributionPolicyId.ID()
 				}
 			}
 
@@ -4267,6 +4538,7 @@ func expandApplicationGatewayURLPathMaps(d *pluginsdk.ResourceData, gatewayID st
 			ruleName := ruleConfigMap["name"].(string)
 			backendAddressPoolName := ruleConfigMap["backend_address_pool_name"].(string)
 			backendHTTPSettingsName := ruleConfigMap["backend_http_settings_name"].(string)
+			loadDistributionPolicyName := ruleConfigMap["load_distribution_policy_name"].(string)
 			redirectConfigurationName := ruleConfigMap["redirect_configuration_name"].(string)
 			firewallPolicyID := ruleConfigMap["firewall_policy_id"].(string)
 
@@ -4304,6 +4576,13 @@ func expandApplicationGatewayURLPathMaps(d *pluginsdk.ResourceData, gatewayID st
 				}
 			}
 
+			if loadDistributionPolicyName != "" {
+				loadDistributionPolicyID := fmt.Sprintf("%s/loadDistributionPolicies/%s", gatewayID, loadDistributionPolicyName)
+				rule.ApplicationGatewayPathRulePropertiesFormat.LoadDistributionPolicy = &network.SubResource{
+					ID: utils.String(loadDistributionPolicyID),
+				}
+			}
+
 			if redirectConfigurationName != "" {
 				redirectConfigurationID := fmt.Sprintf("%s/redirectConfigurations/%s", gatewayID, redirectConfigurationName)
 				rule.ApplicationGatewayPathRulePropertiesFormat.RedirectConfiguration = &network.SubResource{
@@ -4336,6 +4615,7 @@ func expandApplicationGatewayURLPathMaps(d *pluginsdk.ResourceData, gatewayID st
 
 		defaultBackendAddressPoolName := v["default_backend_address_pool_name"].(string)
 		defaultBackendHTTPSettingsName := v["default_backend_http_settings_name"].(string)
+		defaultLoadDistributionPolicyName := v["default_load_distribution_policy_name"].(string)
 		defaultRedirectConfigurationName := v["default_redirect_configuration_name"].(string)
 
 		if defaultBackendAddressPoolName != "" && defaultRedirectConfigurationName != "" {
@@ -4357,6 +4637,13 @@ func expandApplicationGatewayURLPathMaps(d *pluginsdk.ResourceData, gatewayID st
 			defaultBackendHTTPSettingsID := fmt.Sprintf("%s/backendHttpSettingsCollection/%s", gatewayID, defaultBackendHTTPSettingsName)
 			output.ApplicationGatewayURLPathMapPropertiesFormat.DefaultBackendHTTPSettings = &network.SubResource{
 				ID: utils.String(defaultBackendHTTPSettingsID),
+			}
+		}
+
+		if defaultLoadDistributionPolicyName != "" {
+			defaultLoadDistributionPolicyID := fmt.Sprintf("%s/loadDistributionPolicies/%s", gatewayID, defaultLoadDistributionPolicyName)
+			output.ApplicationGatewayURLPathMapPropertiesFormat.DefaultLoadDistributionPolicy = &network.SubResource{
+				ID: utils.String(defaultLoadDistributionPolicyID),
 			}
 		}
 
@@ -4416,6 +4703,16 @@ func flattenApplicationGatewayURLPathMaps(input *[]network.ApplicationGatewayURL
 				output["default_backend_http_settings_id"] = settingsId.ID()
 			}
 
+			if distributionPolicy := props.DefaultLoadDistributionPolicy; distributionPolicy != nil && distributionPolicy.ID != nil {
+				distributionPolicyId, err := parse.LoadDistributionPolicyID(*distributionPolicy.ID)
+				if err != nil {
+					return nil, err
+				}
+
+				output["default_load_distribution_policy_name"] = distributionPolicyId.Name
+				output["default_load_distribution_policy_id"] = distributionPolicyId.ID()
+			}
+
 			if redirect := props.DefaultRedirectConfiguration; redirect != nil && redirect.ID != nil {
 				redirectId, err := parse.RedirectConfigurationsID(*redirect.ID)
 				if err != nil {
@@ -4464,6 +4761,16 @@ func flattenApplicationGatewayURLPathMaps(input *[]network.ApplicationGatewayURL
 							}
 							ruleOutput["backend_http_settings_name"] = backendId.BackendHttpSettingsCollectionName
 							ruleOutput["backend_http_settings_id"] = backendId.ID()
+						}
+
+						if policy := ruleProps.LoadDistributionPolicy; policy != nil && policy.ID != nil {
+							policyId, err := parse.LoadDistributionPolicyID(*policy.ID)
+							if err != nil {
+								return nil, err
+							}
+
+							ruleOutput["load_distribution_policy_name"] = policyId.Name
+							ruleOutput["load_distribution_policy_id"] = policyId.ID()
 						}
 
 						if redirect := ruleProps.RedirectConfiguration; redirect != nil && redirect.ID != nil {
