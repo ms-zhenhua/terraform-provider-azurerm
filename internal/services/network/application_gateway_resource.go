@@ -3118,7 +3118,7 @@ func expandApplicationGatewayLoadDistributionTargets(inputList []interface{}, ga
 		output := network.ApplicationGatewayLoadDistributionTarget{
 			Name: utils.String(v["name"].(string)),
 			ApplicationGatewayLoadDistributionTargetPropertiesFormat: &network.ApplicationGatewayLoadDistributionTargetPropertiesFormat{
-				WeightPerServer: utils.Int32(v["weight_per_server"].(int32)),
+				WeightPerServer: utils.Int32(int32(v["weight_per_server"].(int))),
 				BackendAddressPool: &network.SubResource{
 					ID: utils.String(backendAddressPoolID.ID()),
 				},
