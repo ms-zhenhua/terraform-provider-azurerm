@@ -115,6 +115,7 @@ import (
 	"github.com/hashicorp/terraform-provider-azurerm/internal/services/vmware"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/services/voiceservices"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/services/web"
+	"github.com/hashicorp/terraform-provider-azurerm/internal/services/workloads"
 )
 
 //go:generate go run ../tools/generator-services/main.go -path=../../
@@ -172,6 +173,7 @@ func SupportedTypedServices() []sdk.TypedServiceRegistration {
 		vmware.Registration{},
 		voiceservices.Registration{},
 		web.Registration{},
+		workloads.Registration{},
 	}
 	services = append(services, autoRegisteredTypedServices()...)
 	return services

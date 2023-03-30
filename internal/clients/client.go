@@ -128,6 +128,7 @@ import (
 	vmware "github.com/hashicorp/terraform-provider-azurerm/internal/services/vmware/client"
 	voiceServices "github.com/hashicorp/terraform-provider-azurerm/internal/services/voiceservices/client"
 	web "github.com/hashicorp/terraform-provider-azurerm/internal/services/web/client"
+	workloads "github.com/hashicorp/terraform-provider-azurerm/internal/services/workloads/client"
 )
 
 type Client struct {
@@ -250,6 +251,7 @@ type Client struct {
 	Vmware                *vmware.Client
 	VoiceServices         *voiceServices.Client
 	Web                   *web.Client
+	Workloads             *workloads.Client
 }
 
 // NOTE: it should be possible for this method to become Private once the top level Client's removed
@@ -395,6 +397,7 @@ func (client *Client) Build(ctx context.Context, o *common.ClientOptions) error 
 	client.Vmware = vmware.NewClient(o)
 	client.VoiceServices = voiceServices.NewClient(o)
 	client.Web = web.NewClient(o)
+	client.Workloads = workloads.NewClient(o)
 
 	return nil
 }
