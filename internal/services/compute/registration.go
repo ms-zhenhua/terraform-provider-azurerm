@@ -1,6 +1,7 @@
 package compute
 
 import (
+	"github.com/hashicorp/terraform-provider-azurerm/internal/sdk"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/pluginsdk"
 )
 
@@ -29,6 +30,7 @@ func (r Registration) SupportedDataSources() map[string]*pluginsdk.Resource {
 		"azurerm_image":                     dataSourceImage(),
 		"azurerm_images":                    dataSourceImages(),
 		"azurerm_disk_access":               dataSourceDiskAccess(),
+		"azurerm_marketplace_agreement":     dataSourceMarketplaceAgreement(),
 		"azurerm_platform_image":            dataSourcePlatformImage(),
 		"azurerm_proximity_placement_group": dataSourceProximityPlacementGroup(),
 		"azurerm_shared_image_gallery":      dataSourceSharedImageGallery(),
@@ -73,4 +75,17 @@ func (r Registration) SupportedResources() map[string]*pluginsdk.Resource {
 	}
 
 	return resources
+}
+
+func (r Registration) DataSources() []sdk.DataSource {
+	return []sdk.DataSource{
+		OrchestratedVirtualMachineScaleSetDataSource{},
+	}
+}
+
+func (r Registration) Resources() []sdk.Resource {
+	return []sdk.Resource{
+		GalleryApplicationResource{},
+		GalleryApplicationVersionResource{},
+	}
 }

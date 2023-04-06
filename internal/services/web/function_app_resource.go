@@ -7,9 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/services/web/mgmt/2021-02-01/web" // nolint: staticcheck
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/commonids"
-
-	"github.com/Azure/azure-sdk-for-go/services/web/mgmt/2021-02-01/web"
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/commonschema"
 	"github.com/hashicorp/terraform-provider-azurerm/helpers/azure"
 	"github.com/hashicorp/terraform-provider-azurerm/helpers/tf"
@@ -55,9 +54,9 @@ func resourceFunctionApp() *pluginsdk.Resource {
 				ValidateFunc: webValidate.AppServiceName,
 			},
 
-			"resource_group_name": azure.SchemaResourceGroupName(),
+			"resource_group_name": commonschema.ResourceGroupName(),
 
-			"location": azure.SchemaLocation(),
+			"location": commonschema.Location(),
 
 			"app_service_plan_id": {
 				Type:     pluginsdk.TypeString,
@@ -243,9 +242,13 @@ func resourceFunctionApp() *pluginsdk.Resource {
 func resourceFunctionAppCreate(d *pluginsdk.ResourceData, meta interface{}) error {
 	client := meta.(*clients.Client).Web.AppServicesClient
 	subscriptionId := meta.(*clients.Client).Account.SubscriptionId
-	endpointSuffix := meta.(*clients.Client).Account.Environment.StorageEndpointSuffix
 	ctx, cancel := timeouts.ForCreate(meta.(*clients.Client).StopContext, d)
 	defer cancel()
+
+	storageDomainSuffix, ok := meta.(*clients.Client).Account.Environment.Storage.DomainSuffix()
+	if !ok {
+		return fmt.Errorf("could not determine Storage domain suffix for environment %q", meta.(*clients.Client).Account.Environment.Name)
+	}
 
 	log.Printf("[INFO] preparing arguments for AzureRM Function App creation.")
 
@@ -296,7 +299,7 @@ func resourceFunctionAppCreate(d *pluginsdk.ResourceData, meta interface{}) erro
 		return err
 	}
 
-	basicAppSettings, err := getBasicFunctionAppAppSettings(d, appServiceTier, endpointSuffix, nil)
+	basicAppSettings, err := getBasicFunctionAppAppSettings(d, appServiceTier, *storageDomainSuffix, nil)
 	if err != nil {
 		return err
 	}
@@ -358,9 +361,12 @@ func resourceFunctionAppCreate(d *pluginsdk.ResourceData, meta interface{}) erro
 		sourceControl := &web.SiteSourceControl{}
 		sourceControl.SiteSourceControlProperties = sourceControlProperties
 		// TODO - Do we need to lock the function app for updates?
-		_, err := client.CreateOrUpdateSourceControl(ctx, id.ResourceGroup, id.SiteName, *sourceControl)
+		future, err := client.CreateOrUpdateSourceControl(ctx, id.ResourceGroup, id.SiteName, *sourceControl)
 		if err != nil {
 			return fmt.Errorf("failed to create %s: %+v", id, err)
+		}
+		if err := future.WaitForCompletionRef(ctx, client.Client); err != nil {
+			return fmt.Errorf("waiting for creation of %q: %+v", id, err)
 		}
 	}
 
@@ -383,9 +389,13 @@ func resourceFunctionAppCreate(d *pluginsdk.ResourceData, meta interface{}) erro
 
 func resourceFunctionAppUpdate(d *pluginsdk.ResourceData, meta interface{}) error {
 	client := meta.(*clients.Client).Web.AppServicesClient
-	endpointSuffix := meta.(*clients.Client).Account.Environment.StorageEndpointSuffix
 	ctx, cancel := timeouts.ForUpdate(meta.(*clients.Client).StopContext, d)
 	defer cancel()
+
+	storageDomainSuffix, ok := meta.(*clients.Client).Account.Environment.Storage.DomainSuffix()
+	if !ok {
+		return fmt.Errorf("could not determine Storage domain suffix for environment %q", meta.(*clients.Client).Account.Environment.Name)
+	}
 
 	id, err := parse.FunctionAppID(d.Id())
 	if err != nil {
@@ -422,7 +432,7 @@ func resourceFunctionAppUpdate(d *pluginsdk.ResourceData, meta interface{}) erro
 		currentAppSettings = appSettingsList.Properties
 	}
 
-	basicAppSettings, err := getBasicFunctionAppAppSettings(d, appServiceTier, endpointSuffix, currentAppSettings)
+	basicAppSettings, err := getBasicFunctionAppAppSettings(d, appServiceTier, *storageDomainSuffix, currentAppSettings)
 	if err != nil {
 		return err
 	}

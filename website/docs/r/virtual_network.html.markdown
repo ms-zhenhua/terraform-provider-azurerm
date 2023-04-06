@@ -59,13 +59,13 @@ resource "azurerm_virtual_network" "example" {
 
 The following arguments are supported:
 
-* `name` - (Required) The name of the virtual network. Changing this forces a new resource to be created.
+* `name` - (Required) The name of the virtual network. Changing this forces a new resource to be created. 
 
-* `resource_group_name` - (Required) The name of the resource group in which to create the virtual network.
+* `resource_group_name` - (Required) The name of the resource group in which to create the virtual network. Changing this forces a new resource to be created.
 
 * `address_space` - (Required) The address space that is used the virtual network. You can supply more than one address space.
 
-* `location` - (Required) The location/region where the virtual network is created. Changing this forces a new resource to be created.
+* `location` - (Required) The location/region where the virtual network is created. Changing this forces a new resource to be created. 
 
 ---
 
@@ -113,17 +113,17 @@ The following attributes are exported:
 
 * `id` - The virtual NetworkConfiguration ID.
 
-* `name` - The name of the virtual network.
+* `name` - (Required) The name of the virtual network. Changing this forces a new resource to be created.
 
-* `resource_group_name` - The name of the resource group in which to create the virtual network.
+* `resource_group_name` - (Required) The name of the resource group in which to create the virtual network.
 
-* `location` - The location/region where the virtual network is created.
+* `location` - (Required) The location/region where the virtual network is created. Changing this forces a new resource to be created.
 
-* `address_space` - The list of address spaces used by the virtual network.
+* `address_space` - (Required) The list of address spaces used by the virtual network.
 
 * `guid` - The GUID of the virtual network.
 
-* `subnet`- One or more `subnet` blocks as defined below.
+* `subnet` - (Optional) One or more `subnet` blocks as defined below.
 
 ---
 
@@ -133,7 +133,7 @@ The `subnet` block exports:
 
 ## Timeouts
 
-The `timeouts` block allows you to specify [timeouts](https://www.terraform.io/docs/configuration/resources.html#timeouts) for certain actions:
+The `timeouts` block allows you to specify [timeouts](https://www.terraform.io/language/resources/syntax#operation-timeouts) for certain actions:
 
 * `create` - (Defaults to 30 minutes) Used when creating the Virtual Network.
 * `update` - (Defaults to 30 minutes) Used when updating the Virtual Network.

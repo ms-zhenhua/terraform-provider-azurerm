@@ -8,9 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/services/recoveryservices/mgmt/2021-12-01/backup"
+	"github.com/Azure/azure-sdk-for-go/services/recoveryservices/mgmt/2021-12-01/backup" // nolint: staticcheck
 	"github.com/Azure/go-autorest/autorest/date"
-	"github.com/hashicorp/terraform-provider-azurerm/helpers/azure"
+	"github.com/hashicorp/go-azure-helpers/resourcemanager/commonschema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-provider-azurerm/helpers/tf"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/clients"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/services/recoveryservices/parse"
@@ -147,6 +148,7 @@ func resourceBackupProtectionPolicyVMCreateUpdate(d *pluginsdk.ResourceData, met
 		BackupManagementType: backup.ManagementTypeBasicProtectionPolicyBackupManagementTypeAzureIaasVM,
 		PolicyType:           policyType,
 		SchedulePolicy:       *schedulePolicy,
+		InstantRPDetails:     expandBackupProtectionPolicyVMResourceGroup(d),
 		RetentionPolicy: &backup.LongTermRetentionPolicy{ // SimpleRetentionPolicy only has duration property ¯\_(ツ)_/¯
 			RetentionPolicyType: backup.RetentionPolicyTypeLongTermRetentionPolicy,
 			DailySchedule:       expandBackupProtectionPolicyVMRetentionDaily(d, times),
@@ -269,6 +271,10 @@ func resourceBackupProtectionPolicyVMRead(d *pluginsdk.ResourceData, meta interf
 				d.Set("retention_yearly", nil)
 			}
 		}
+
+		if instantRPDetail := properties.InstantRPDetails; instantRPDetail != nil {
+			d.Set("instant_restore_resource_group", flattenBackupProtectionPolicyVMResourceGroup(*instantRPDetail))
+		}
 	}
 
 	return nil
@@ -353,6 +359,16 @@ func expandBackupProtectionPolicyVMSchedule(d *pluginsdk.ResourceData, times []d
 					return nil, fmt.Errorf("`hour_duration` must be specified when `backup.0.frequency` is `Hourly`")
 				}
 
+				if interval == 0 && duration == 0 {
+					return nil, fmt.Errorf("`hour_interval` and `hour_duration` must be specified when `backup.0.frequency` is `Hourly`")
+				}
+				if interval == 0 {
+					return nil, fmt.Errorf("`hour_interval` must be specified when `backup.0.frequency` is `Hourly`")
+				}
+				if duration == 0 {
+					return nil, fmt.Errorf("`hour_duration` must be specified when `backup.0.frequency` is `Hourly`")
+				}
+
 				if duration%interval != 0 {
 					return nil, fmt.Errorf("`hour_duration` must be multiplier of `hour_interval`")
 				}
@@ -391,6 +407,21 @@ func expandBackupProtectionPolicyVMSchedule(d *pluginsdk.ResourceData, times []d
 	}
 
 	return nil, nil
+}
+
+func expandBackupProtectionPolicyVMResourceGroup(d *pluginsdk.ResourceData) *backup.InstantRPAdditionalDetails {
+	if v, ok := d.Get("instant_restore_resource_group").([]interface{}); ok && len(v) > 0 {
+		rgRaw := v[0].(map[string]interface{})
+		output := &backup.InstantRPAdditionalDetails{
+			AzureBackupRGNamePrefix: utils.String(rgRaw["prefix"].(string)),
+		}
+		if suffix, ok := rgRaw["suffix"]; ok && suffix != "" {
+			output.AzureBackupRGNameSuffix = utils.String(suffix.(string))
+		}
+		return output
+	}
+
+	return nil
 }
 
 func expandBackupProtectionPolicyVMRetentionDaily(d *pluginsdk.ResourceData, times []date.Time) *backup.DailyRetentionSchedule {
@@ -505,6 +536,28 @@ func expandBackupProtectionPolicyVMRetentionWeeklyFormat(block map[string]interf
 	}
 
 	return &weekly
+}
+
+func flattenBackupProtectionPolicyVMResourceGroup(rpDetail backup.InstantRPAdditionalDetails) []interface{} {
+	if rpDetail.AzureBackupRGNamePrefix == nil {
+		return nil
+	}
+
+	block := map[string]interface{}{}
+
+	prefix := ""
+	if rpDetail.AzureBackupRGNamePrefix != nil {
+		prefix = *rpDetail.AzureBackupRGNamePrefix
+	}
+	block["prefix"] = prefix
+
+	suffix := ""
+	if rpDetail.AzureBackupRGNameSuffix != nil {
+		suffix = *rpDetail.AzureBackupRGNameSuffix
+	}
+	block["suffix"] = suffix
+
+	return []interface{}{block}
 }
 
 func flattenBackupProtectionPolicyVMSchedule(schedule *backup.SimpleSchedulePolicy) []interface{} {
@@ -731,7 +784,7 @@ func resourceBackupProtectionPolicyVMSchema() map[string]*pluginsdk.Schema {
 			),
 		},
 
-		"resource_group_name": azure.SchemaResourceGroupName(),
+		"resource_group_name": commonschema.ResourceGroupName(),
 
 		"instant_restore_retention_days": {
 			Type:         pluginsdk.TypeInt,
@@ -751,6 +804,26 @@ func resourceBackupProtectionPolicyVMSchema() map[string]*pluginsdk.Schema {
 			Type:     pluginsdk.TypeString,
 			Optional: true,
 			Default:  "UTC",
+		},
+
+		"instant_restore_resource_group": {
+			Type:     pluginsdk.TypeList,
+			MaxItems: 1,
+			Optional: true,
+			Elem: &pluginsdk.Resource{
+				Schema: map[string]*schema.Schema{
+					"prefix": {
+						Type:         pluginsdk.TypeString,
+						Required:     true,
+						ValidateFunc: validation.StringIsNotEmpty,
+					},
+					"suffix": {
+						Type:         pluginsdk.TypeString,
+						Optional:     true,
+						ValidateFunc: validation.StringIsNotEmpty,
+					},
+				},
+			},
 		},
 
 		"backup": {

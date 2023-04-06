@@ -87,7 +87,7 @@ In addition to the Arguments listed above - the following Attributes are exporte
 
 ## Timeouts
 
-The `timeouts` block allows you to specify [timeouts](https://www.terraform.io/docs/configuration/resources.html#timeouts) for certain actions:
+The `timeouts` block allows you to specify [timeouts](https://www.terraform.io/language/resources/syntax#operation-timeouts) for certain actions:
 
 * `create` - (Defaults to 30 minutes) Used when creating the API Management Azure AD B2C Identity Provider.
 * `read` - (Defaults to 5 minutes) Used when retrieving the API Management Azure AD B2C Identity Provider.
@@ -99,5 +99,5 @@ The `timeouts` block allows you to specify [timeouts](https://www.terraform.io/d
 API Management Azure AD B2C Identity Providers can be imported using the `resource id`, e.g.
 
 ```shell
-terraform import azurerm_api_management_identity_provider_aadb2c.example /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/mygroup1/providers/Microsoft.ApiManagement/service/service1/identityProviders/AadB2C
+terraform import azurerm_api_management_identity_provider_aadb2c.example /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/mygroup1/providers/Microsoft.ApiManagement/service/service1/identityProviders/aadB2C
 ```

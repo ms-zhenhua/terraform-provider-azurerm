@@ -57,7 +57,7 @@ The following arguments are supported:
 
 * `end_time` - (Optional) The time the Schedule Trigger should end. The time will be represented in UTC.
 
-* `interval` - (Optional) The interval for how often the trigger occurs. This defaults to 1.
+* `interval` - (Optional) The interval for how often the trigger occurs. This defaults to `1`.
 
 * `frequency` - (Optional) The trigger frequency. Valid values include `Minute`, `Hour`, `Day`, `Week`, `Month`. Defaults to `Minute`.
 
@@ -109,7 +109,7 @@ The following attributes are exported:
 
 ## Timeouts
 
-The `timeouts` block allows you to specify [timeouts](https://www.terraform.io/docs/configuration/resources.html#timeouts) for certain actions:
+The `timeouts` block allows you to specify [timeouts](https://www.terraform.io/language/resources/syntax#operation-timeouts) for certain actions:
 
 * `create` - (Defaults to 30 minutes) Used when creating the Data Factory Schedule Trigger.
 * `update` - (Defaults to 30 minutes) Used when updating the Data Factory Schedule Trigger.

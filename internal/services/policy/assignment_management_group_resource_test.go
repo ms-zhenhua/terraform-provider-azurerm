@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	assignments "github.com/hashicorp/go-azure-sdk/resource-manager/resources/2022-06-01/policyassignments"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/acceptance"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/acceptance/check"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/clients"
-	"github.com/hashicorp/terraform-provider-azurerm/internal/services/policy/parse"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/pluginsdk"
 	"github.com/hashicorp/terraform-provider-azurerm/utils"
 )
@@ -62,7 +63,7 @@ func TestAccManagementGroupPolicyAssignment_basicWithBuiltInPolicyNonComplianceM
 			Config: r.withBuiltInPolicyNonComplianceMessageUpdated(data),
 			Check: acceptance.ComposeTestCheckFunc(
 				check.That(data.ResourceName).ExistsInAzure(r),
-				check.That(data.ResourceName).Key("non_compliance_message").DoesNotExist(),
+				check.That(data.ResourceName).Key("non_compliance_message.0").DoesNotExist(),
 			),
 		},
 		data.ImportStep(),
@@ -195,6 +196,35 @@ func TestAccManagementGroupPolicyAssignment_basicWithCustomPolicy(t *testing.T) 
 	})
 }
 
+func TestAccManagementGroupPolicyAssignment_overridesAndResourceSelector(t *testing.T) {
+	data := acceptance.BuildTestData(t, "azurerm_management_group_policy_assignment", "test")
+	r := ManagementGroupAssignmentTestResource{}
+
+	data.ResourceTest(t, r, []acceptance.TestStep{
+		{
+			Config: r.withOverrideAndSelectorsBasic(data),
+			Check: acceptance.ComposeTestCheckFunc(
+				check.That(data.ResourceName).ExistsInAzure(r),
+			),
+		},
+		data.ImportStep(),
+		{
+			Config: r.withOverrideAndSelectorsUpdate(data),
+			Check: acceptance.ComposeTestCheckFunc(
+				check.That(data.ResourceName).ExistsInAzure(r),
+			),
+		},
+		data.ImportStep(),
+		{
+			Config: r.withOverrideAndSelectorsBasic(data),
+			Check: acceptance.ComposeTestCheckFunc(
+				check.That(data.ResourceName).ExistsInAzure(r),
+			),
+		},
+		data.ImportStep(),
+	})
+}
+
 func TestAccManagementGroupPolicyAssignment_basicWithCustomPolicyRequiresImport(t *testing.T) {
 	data := acceptance.BuildTestData(t, "azurerm_management_group_policy_assignment", "test")
 	r := ManagementGroupAssignmentTestResource{}
@@ -270,14 +300,14 @@ func TestAccManagementGroupPolicyAssignment_basicComplexWithCustomPolicy(t *test
 }
 
 func (r ManagementGroupAssignmentTestResource) Exists(ctx context.Context, client *clients.Client, state *pluginsdk.InstanceState) (*bool, error) {
-	id, err := parse.PolicyAssignmentID(state.ID)
+	id, err := assignments.ParseScopedPolicyAssignmentID(state.ID)
 	if err != nil {
 		return nil, err
 	}
 
-	assignment, err := client.Policy.AssignmentsClient.Get(ctx, id.Scope, id.Name)
+	assignment, err := client.Policy.AssignmentsClient.Get(ctx, *id)
 	if err != nil {
-		if utils.ResponseWasNotFound(assignment.Response) {
+		if response.WasNotFound(assignment.HttpResponse) {
 			return utils.Bool(false), nil
 		}
 
@@ -301,7 +331,7 @@ data "azurerm_policy_definition" "test" {
 }
 
 resource "azurerm_management_group_policy_assignment" "test" {
-  name                 = "acctestpol-%[2]s"
+  name                 = "acctestpol-mg-%[2]s"
   management_group_id  = azurerm_management_group.test.id
   policy_definition_id = data.azurerm_policy_definition.test.id
   parameters = jsonencode({
@@ -327,7 +357,7 @@ data "azurerm_policy_definition" "test" {
 }
 
 resource "azurerm_management_group_policy_assignment" "test" {
-  name                 = "acctestpol-%[2]s"
+  name                 = "acctestpol-mg-%[2]s"
   management_group_id  = azurerm_management_group.test.id
   policy_definition_id = data.azurerm_policy_definition.test.id
   parameters = jsonencode({
@@ -353,7 +383,7 @@ data "azurerm_policy_definition" "test" {
 }
 
 resource "azurerm_management_group_policy_assignment" "test" {
-  name                 = "acctestpol-%[2]s"
+  name                 = "acctestpol-mg-%[2]s"
   management_group_id  = azurerm_management_group.test.id
   policy_definition_id = data.azurerm_policy_definition.test.id
 
@@ -384,7 +414,7 @@ data "azurerm_policy_definition" "test" {
 }
 
 resource "azurerm_management_group_policy_assignment" "test" {
-  name                 = "acctestpol-%[2]s"
+  name                 = "acctestpol-mg-%[2]s"
   management_group_id  = azurerm_management_group.test.id
   policy_definition_id = data.azurerm_policy_definition.test.id
   parameters = jsonencode({
@@ -410,7 +440,7 @@ data "azurerm_policy_set_definition" "test" {
 }
 
 resource "azurerm_management_group_policy_assignment" "test" {
-  name                 = "acctestpol-%[2]s"
+  name                 = "acctestpol-mg-%[2]s"
   management_group_id  = azurerm_management_group.test.id
   policy_definition_id = data.azurerm_policy_set_definition.test.id
   location             = %[3]q
@@ -436,7 +466,7 @@ data "azurerm_policy_set_definition" "test" {
 }
 
 resource "azurerm_management_group_policy_assignment" "test" {
-  name                 = "acctestpol-%[2]s"
+  name                 = "acctestpol-mg-%[2]s"
   management_group_id  = azurerm_management_group.test.id
   policy_definition_id = data.azurerm_policy_set_definition.test.id
   location             = %[3]q
@@ -466,7 +496,7 @@ data "azurerm_policy_set_definition" "test" {
 }
 
 resource "azurerm_management_group_policy_assignment" "test" {
-  name                 = "acctestpol-%[2]s"
+  name                 = "acctestpol-mg-%[2]s"
   management_group_id  = azurerm_management_group.test.id
   policy_definition_id = data.azurerm_policy_set_definition.test.id
   location             = %[3]q
@@ -496,7 +526,7 @@ data "azurerm_policy_set_definition" "test" {
 }
 
 resource "azurerm_management_group_policy_assignment" "test" {
-  name                 = "acctestpol-%[2]s"
+  name                 = "acctestpol-mg-%[2]s"
   management_group_id  = azurerm_management_group.test.id
   policy_definition_id = data.azurerm_policy_set_definition.test.id
   location             = %[3]q
@@ -527,7 +557,7 @@ provider "azurerm" {
 %s
 
 resource "azurerm_management_group_policy_assignment" "test" {
-  name                 = "acctestpol-%[2]s"
+  name                 = "acctestpol-mg-%[2]s"
   management_group_id  = azurerm_management_group.test.id
   policy_definition_id = azurerm_policy_definition.test.id
 }
@@ -547,7 +577,7 @@ provider "azurerm" {
 %s
 
 resource "azurerm_management_group_policy_assignment" "test" {
-  name                 = "acctestpol-%[2]s"
+  name                 = "acctestpol-mg-%[2]s"
   management_group_id  = azurerm_management_group.test.id
   policy_definition_id = azurerm_policy_definition.test.id
   description          = "This is a policy assignment from an acceptance test"
@@ -583,10 +613,10 @@ provider "azurerm" {
 %[1]s
 
 resource "azurerm_policy_definition" "test" {
-  name                = "acctestpol-%[2]s"
+  name                = "acctestpol-mg-%[2]s"
   policy_type         = "Custom"
   mode                = "All"
-  display_name        = "acctestpol-%[2]s"
+  display_name        = "acctestpol-mg-%[2]s"
   description         = "Description for %[2]s"
   management_group_id = azurerm_management_group.test.id
   metadata            = <<METADATA
@@ -680,7 +710,7 @@ POLICY_RULE
 }
 
 resource "azurerm_management_group_policy_assignment" "test" {
-  name                 = "acctestpol-%[2]s"
+  name                 = "acctestpol-mg-%[2]s"
   management_group_id  = azurerm_management_group.test.id
   policy_definition_id = azurerm_policy_definition.test.id
 }
@@ -697,12 +727,89 @@ provider "azurerm" {
 %s
 
 resource "azurerm_management_group_policy_assignment" "test" {
-  name                 = "acctestpol-%[2]s"
+  name                 = "acctestpol-mg-%[2]s"
   management_group_id  = azurerm_management_group.test.id
   policy_definition_id = azurerm_policy_definition.test.id
   metadata = jsonencode({
     "category" : "Testing"
   })
+}
+`, template, data.RandomString)
+}
+
+func (r ManagementGroupAssignmentTestResource) withOverrideAndSelectorsBasic(data acceptance.TestData) string {
+	template := r.templateWithCustomPolicy(data)
+	return fmt.Sprintf(`
+provider "azurerm" {
+  features {}
+}
+
+%s
+
+data "azurerm_policy_set_definition" "test" {
+  display_name = "Audit machines with insecure password security settings"
+}
+
+resource "azurerm_management_group_policy_assignment" "test" {
+  name                 = "acctestpol-mg-%[2]s"
+  management_group_id  = azurerm_management_group.test.id
+  policy_definition_id = data.azurerm_policy_set_definition.test.id
+  metadata = jsonencode({
+    "category" : "Testing"
+  })
+
+  overrides {
+    value = "Disabled"
+    selectors {
+      in = [data.azurerm_policy_set_definition.test.policy_definition_reference.0.reference_id]
+    }
+  }
+
+  resource_selectors {
+    selectors {
+      not_in = ["eastus", "westus"]
+      kind   = "resourceLocation"
+    }
+  }
+}
+`, template, data.RandomString)
+}
+
+func (r ManagementGroupAssignmentTestResource) withOverrideAndSelectorsUpdate(data acceptance.TestData) string {
+	template := r.templateWithCustomPolicy(data)
+	return fmt.Sprintf(`
+provider "azurerm" {
+  features {}
+}
+
+%s
+
+data "azurerm_policy_set_definition" "test" {
+  display_name = "Audit machines with insecure password security settings"
+}
+
+resource "azurerm_management_group_policy_assignment" "test" {
+  name                 = "acctestpol-mg-%[2]s"
+  management_group_id  = azurerm_management_group.test.id
+  policy_definition_id = data.azurerm_policy_set_definition.test.id
+  metadata = jsonencode({
+    "category" : "Testing"
+  })
+
+  overrides {
+    value = "AuditIfNotExists"
+    selectors {
+      in = [data.azurerm_policy_set_definition.test.policy_definition_reference.0.reference_id]
+    }
+  }
+
+  resource_selectors {
+    name = "selected for policy"
+    selectors {
+      not_in = ["eastus"]
+      kind   = "resourceLocation"
+    }
+  }
 }
 `, template, data.RandomString)
 }
@@ -713,10 +820,10 @@ func (r ManagementGroupAssignmentTestResource) templateWithCustomPolicy(data acc
 %[1]s
 
 resource "azurerm_policy_definition" "test" {
-  name                = "acctestpol-%[2]s"
+  name                = "acctestpol-mg-%[2]s"
   policy_type         = "Custom"
   mode                = "All"
-  display_name        = "acctestpol-%[2]s"
+  display_name        = "acctestpol-mg-%[2]s"
   management_group_id = azurerm_management_group.test.id
 
   policy_rule = <<POLICY_RULE
@@ -758,7 +865,7 @@ data "azurerm_policy_set_definition" "test" {
 }
 
 resource "azurerm_management_group_policy_assignment" "test" {
-  name                 = "acctestpol-%[2]s"
+  name                 = "acctestpol-mg-%[2]s"
   management_group_id  = azurerm_management_group.test.id
   policy_definition_id = data.azurerm_policy_set_definition.test.id
   location             = %[3]q
@@ -795,7 +902,7 @@ resource "azurerm_user_assigned_identity" "test" {
 }
 
 resource "azurerm_management_group_policy_assignment" "test" {
-  name                 = "acctestpol-%[2]s"
+  name                 = "acctestpol-mg-%[2]s"
   management_group_id  = azurerm_management_group.test.id
   policy_definition_id = data.azurerm_policy_set_definition.test.id
   location             = %[3]q

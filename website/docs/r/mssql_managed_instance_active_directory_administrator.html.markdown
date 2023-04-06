@@ -90,7 +90,7 @@ The following arguments are supported:
 
 * `tenant_id` - (Required) The Azure Active Directory Tenant ID.
 
-* `azuread_authentication_only` - (Optional) When `true`, only permit logins from AAD users and administrators. When `false`, also allow local database users. Defaults to `false`.
+* `azuread_authentication_only` - (Optional) When `true`, only permit logins from AAD users and administrators. When `false`, also allow local database users.
 
 ## Attributes Reference
 
@@ -100,7 +100,7 @@ The following attributes are exported:
 
 ## Timeouts
 
-The `timeouts` block allows you to specify [timeouts](https://www.terraform.io/docs/configuration/resources.html#timeouts) for certain actions:
+The `timeouts` block allows you to specify [timeouts](https://www.terraform.io/language/resources/syntax#operation-timeouts) for certain actions:
 
 * `create` - (Defaults to 30 minutes) Used when creating the SQL Active Directory Administrator.
 * `update` - (Defaults to 30 minutes) Used when updating the SQL Active Directory Administrator.

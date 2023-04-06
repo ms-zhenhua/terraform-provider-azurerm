@@ -3,18 +3,19 @@ package mssql
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/services/preview/sql/mgmt/v5.0/sql"
+	"github.com/Azure/azure-sdk-for-go/services/preview/sql/mgmt/v5.0/sql" // nolint: staticcheck
 	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-helpers/resourcemanager/commonids"
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/commonschema"
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/identity"
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/location"
+	"github.com/hashicorp/go-azure-sdk/resource-manager/maintenance/2022-07-01-preview/publicmaintenanceconfigurations"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"github.com/hashicorp/terraform-provider-azurerm/helpers/azure"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/sdk"
-	maintenanceParse "github.com/hashicorp/terraform-provider-azurerm/internal/services/maintenance/parse"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/services/mssql/validate"
 	networkValidate "github.com/hashicorp/terraform-provider-azurerm/internal/services/network/validate"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/services/sql/parse"
@@ -25,27 +26,27 @@ import (
 )
 
 type MsSqlManagedInstanceModel struct {
-	AdministratorLogin           string                    `tfschema:"administrator_login"`
-	AdministratorLoginPassword   string                    `tfschema:"administrator_login_password"`
-	Collation                    string                    `tfschema:"collation"`
-	DnsZonePartnerId             string                    `tfschema:"dns_zone_partner_id"`
-	Fqdn                         string                    `tfschema:"fqdn"`
-	Identity                     []identity.SystemAssigned `tfschema:"identity"`
-	LicenseType                  string                    `tfschema:"license_type"`
-	Location                     string                    `tfschema:"location"`
-	MaintenanceConfigurationName string                    `tfschema:"maintenance_configuration_name"`
-	MinimumTlsVersion            string                    `tfschema:"minimum_tls_version"`
-	Name                         string                    `tfschema:"name"`
-	ProxyOverride                string                    `tfschema:"proxy_override"`
-	PublicDataEndpointEnabled    bool                      `tfschema:"public_data_endpoint_enabled"`
-	ResourceGroupName            string                    `tfschema:"resource_group_name"`
-	SkuName                      string                    `tfschema:"sku_name"`
-	StorageAccountType           string                    `tfschema:"storage_account_type"`
-	StorageSizeInGb              int                       `tfschema:"storage_size_in_gb"`
-	SubnetId                     string                    `tfschema:"subnet_id"`
-	Tags                         map[string]string         `tfschema:"tags"`
-	TimezoneId                   string                    `tfschema:"timezone_id"`
-	VCores                       int                       `tfschema:"vcores"`
+	AdministratorLogin           string                              `tfschema:"administrator_login"`
+	AdministratorLoginPassword   string                              `tfschema:"administrator_login_password"`
+	Collation                    string                              `tfschema:"collation"`
+	DnsZonePartnerId             string                              `tfschema:"dns_zone_partner_id"`
+	Fqdn                         string                              `tfschema:"fqdn"`
+	Identity                     []identity.SystemOrUserAssignedList `tfschema:"identity"`
+	LicenseType                  string                              `tfschema:"license_type"`
+	Location                     string                              `tfschema:"location"`
+	MaintenanceConfigurationName string                              `tfschema:"maintenance_configuration_name"`
+	MinimumTlsVersion            string                              `tfschema:"minimum_tls_version"`
+	Name                         string                              `tfschema:"name"`
+	ProxyOverride                string                              `tfschema:"proxy_override"`
+	PublicDataEndpointEnabled    bool                                `tfschema:"public_data_endpoint_enabled"`
+	ResourceGroupName            string                              `tfschema:"resource_group_name"`
+	SkuName                      string                              `tfschema:"sku_name"`
+	StorageAccountType           string                              `tfschema:"storage_account_type"`
+	StorageSizeInGb              int                                 `tfschema:"storage_size_in_gb"`
+	SubnetId                     string                              `tfschema:"subnet_id"`
+	Tags                         map[string]string                   `tfschema:"tags"`
+	TimezoneId                   string                              `tfschema:"timezone_id"`
+	VCores                       int                                 `tfschema:"vcores"`
 }
 
 var _ sdk.Resource = MsSqlManagedInstanceResource{}
@@ -75,9 +76,9 @@ func (r MsSqlManagedInstanceResource) Arguments() map[string]*pluginsdk.Schema {
 			ValidateFunc: validate.ValidateMsSqlServerName,
 		},
 
-		"location": azure.SchemaLocation(),
+		"location": commonschema.Location(),
 
-		"resource_group_name": azure.SchemaResourceGroupName(),
+		"resource_group_name": commonschema.ResourceGroupName(),
 
 		"sku_name": {
 			Type:     schema.TypeString,
@@ -120,7 +121,7 @@ func (r MsSqlManagedInstanceResource) Arguments() map[string]*pluginsdk.Schema {
 		"storage_size_in_gb": {
 			Type:         schema.TypeInt,
 			Required:     true,
-			ValidateFunc: validation.IntBetween(32, 8192),
+			ValidateFunc: validation.IntBetween(32, 16384),
 		},
 
 		"subnet_id": {
@@ -159,23 +160,18 @@ func (r MsSqlManagedInstanceResource) Arguments() map[string]*pluginsdk.Schema {
 			ValidateFunc: validate.ManagedInstanceID,
 		},
 
-		"identity": commonschema.SystemAssignedIdentityOptional(),
+		"identity": commonschema.SystemOrUserAssignedIdentityOptional(),
 
 		"maintenance_configuration_name": {
 			Type:     schema.TypeString,
 			Optional: true,
 			Default:  "SQL_Default",
-			ValidateFunc: validation.StringInSlice([]string{"SQL_Default", "SQL_EastUS_MI_1", "SQL_EastUS2_MI_1", "SQL_WestUS2_MI_1", "SQL_SoutheastAsia_MI_1", "SQL_AustraliaEast_MI_1", "SQL_NorthEurope_MI_1", "SQL_SouthCentralUS_MI_1",
-				"SQL_UKSouth_MI_1", "SQL_WestEurope_MI_1", "SQL_EastUS_MI_2", "SQL_EastUS2_MI_2", "SQL_WestUS2_MI_2", "SQL_SoutheastAsia_MI_2", "SQL_NorthEurope_MI_2", "SQL_SouthCentralUS_MI_2",
-				"SQL_UKSouth_MI_2", "SQL_WestEurope_MI_2", "SQL_AustraliaSoutheast_MI_1", "SQL_BrazilSouth_MI_1", "SQL_CanadaCentral_MI_1", "SQL_CanadaEast_MI_1", "SQL_CentralUS_MI_1", "SQL_EastAsia_MI_1",
-				"SQL_FranceCentral_MI_1", "SQL_GermanyWestCentral_MI_1", "SQL_CentralIndia_MI_1", "SQL_JapanEast_MI_1", "SQL_JapanWest_MI_1", "SQL_NorthCentralUS_MI_1", "SQL_UKWest_MI_1", "SQL_WestUS_MI_1",
-				"SQL_AustraliaSoutheast_MI_2", "SQL_BrazilSouth_MI_2", "SQL_CanadaCentral_MI_2", "SQL_CanadaEast_MI_2", "SQL_CentralUS_MI_2", "SQL_EastAsia_MI_2", "SQL_FranceCentral_MI_2", "SQL_GermanyWestCentral_MI_2",
-				"SQL_CentralIndia_MI_2", "SQL_JapanEast_MI_2", "SQL_JapanWest_MI_2", "SQL_NorthCentralUS_MI_2", "SQL_UKWest_MI_2", "SQL_WestUS_MI_2", "SQL_KoreaCentral_MI_1", "SQL_KoreaCentral_MI_2",
-				"SQL_WestCentralUS_MI_1", "SQL_WestCentralUS_MI_2", "SQL_UAENorth_MI_1", "SQL_SwitzerlandWest_MI_1", "SQL_SwitzerlandNorth_MI_1", "SQL_UAENorth_MI_2", "SQL_SwitzerlandWest_MI_2",
-				"SQL_SwitzerlandNorth_MI_2", "SQL_FranceSouth_MI_1", "SQL_FranceSouth_MI_2", "SQL_SouthAfricaNorth_MI_1", "SQL_KoreaSouth_MI_1", "SQL_UAECentral_MI_1", "SQL_SouthAfricaNorth_MI_2",
-				"SQL_KoreaSouth_MI_2", "SQL_UAECentral_MI_2", "SQL_SouthIndia_MI_1", "SQL_SouthIndia_MI_2", "SQL_AustraliaCentral_MI_1", "SQL_AustraliaCentral2_MI_1", "SQL_AustraliaCentral_MI_2",
-				"SQL_AustraliaCentral2_MI_2", "SQL_WestIndia_MI_1", "SQL_WestIndia_MI_2", "SQL_SouthAfricaWest_MI_1", "SQL_SouthAfricaWest_MI_2", "SQL_GermanyNorth_MI_1", "SQL_GermanyNorth_MI_2", "SQL_NorwayEast_MI_1",
-				"SQL_BrazilSoutheast_MI_1", "SQL_NorwayWest_MI_1", "SQL_WestUS3_MI_1", "SQL_NorwayEast_MI_2", "SQL_BrazilSoutheast_MI_2", "SQL_NorwayWest_MI_2", "SQL_WestUS3_MI_2"}, false),
+			ValidateFunc: validation.Any(
+				validation.StringInSlice([]string{
+					"SQL_Default",
+				}, false),
+				validation.StringMatch(regexp.MustCompile(`^SQL_[A-Za-z0-9]+_MI_\d+$`), "expected a name in the format `SQL_{Location}_MI_{Number}` or `SQL_Default`"),
+			),
 		},
 
 		"minimum_tls_version": {
@@ -293,7 +289,7 @@ func (r MsSqlManagedInstanceResource) Create() sdk.ResourceFunc {
 				return fmt.Errorf("expanding `sku_name` for SQL Managed Instance Server %q: %v", id.ID(), err)
 			}
 
-			maintenanceConfigId := maintenanceParse.NewPublicMaintenanceConfigurationID(subscriptionId, model.MaintenanceConfigurationName)
+			maintenanceConfigId := publicmaintenanceconfigurations.NewPublicMaintenanceConfigurationID(subscriptionId, model.MaintenanceConfigurationName)
 
 			parameters := sql.ManagedInstance{
 				Sku:      sku,
@@ -316,6 +312,13 @@ func (r MsSqlManagedInstanceResource) Create() sdk.ResourceFunc {
 					VCores:                     utils.Int32(int32(model.VCores)),
 				},
 				Tags: tags.FromTypedObject(model.Tags),
+			}
+
+			if parameters.Identity != nil && len(parameters.Identity.UserAssignedIdentities) > 0 {
+				for k := range parameters.Identity.UserAssignedIdentities {
+					parameters.ManagedInstanceProperties.PrimaryUserAssignedIdentityID = utils.String(k)
+					break
+				}
 			}
 
 			metadata.Logger.Infof("Creating %s", id)
@@ -379,12 +382,19 @@ func (r MsSqlManagedInstanceResource) Update() sdk.ResourceFunc {
 				Tags: tags.FromTypedObject(state.Tags),
 			}
 
+			if properties.Identity != nil && len(properties.Identity.UserAssignedIdentities) > 0 {
+				for k := range properties.Identity.UserAssignedIdentities {
+					properties.ManagedInstanceProperties.PrimaryUserAssignedIdentityID = utils.String(k)
+					break
+				}
+			}
+
 			if metadata.ResourceData.HasChange("maintenance_configuration_name") {
-				maintenanceConfigId := maintenanceParse.NewPublicMaintenanceConfigurationID(id.SubscriptionId, state.MaintenanceConfigurationName)
+				maintenanceConfigId := publicmaintenanceconfigurations.NewPublicMaintenanceConfigurationID(id.SubscriptionId, state.MaintenanceConfigurationName)
 				properties.MaintenanceConfigurationID = utils.String(maintenanceConfigId.ID())
 			}
 
-			if metadata.ResourceData.HasChange("administrator_password") {
+			if metadata.ResourceData.HasChange("administrator_login_password") {
 				properties.AdministratorLoginPassword = utils.String(state.AdministratorLoginPassword)
 			}
 
@@ -438,6 +448,8 @@ func (r MsSqlManagedInstanceResource) Read() sdk.ResourceFunc {
 
 				// This value is not returned, so we'll just set whatever is in the state/config
 				AdministratorLoginPassword: state.AdministratorLoginPassword,
+				// This value is not returned, so we'll just set whatever is in the state/config
+				DnsZonePartnerId: state.DnsZonePartnerId,
 			}
 
 			if sku := existing.Sku; sku != nil && sku.Name != nil {
@@ -459,11 +471,11 @@ func (r MsSqlManagedInstanceResource) Read() sdk.ResourceFunc {
 					model.Fqdn = *props.FullyQualifiedDomainName
 				}
 				if props.MaintenanceConfigurationID != nil {
-					maintenanceConfigId, err := maintenanceParse.PublicMaintenanceConfigurationID(*props.MaintenanceConfigurationID)
+					maintenanceConfigId, err := publicmaintenanceconfigurations.ParsePublicMaintenanceConfigurationIDInsensitively(*props.MaintenanceConfigurationID)
 					if err != nil {
 						return err
 					}
-					model.MaintenanceConfigurationName = maintenanceConfigId.Name
+					model.MaintenanceConfigurationName = maintenanceConfigId.PublicMaintenanceConfigurationName
 				}
 				if props.MinimalTLSVersion != nil {
 					model.MinimumTlsVersion = *props.MinimalTLSVersion
@@ -515,7 +527,7 @@ func (r MsSqlManagedInstanceResource) Delete() sdk.ResourceFunc {
 	}
 }
 
-func (r MsSqlManagedInstanceResource) expandIdentity(input []identity.SystemAssigned) *sql.ResourceIdentity {
+func (r MsSqlManagedInstanceResource) expandIdentity(input []identity.SystemOrUserAssignedList) *sql.ResourceIdentity {
 	if len(input) == 0 {
 		return nil
 	}
@@ -525,12 +537,21 @@ func (r MsSqlManagedInstanceResource) expandIdentity(input []identity.SystemAssi
 		return nil
 	}
 
+	var identityIds map[string]*sql.UserIdentity
+	if len(input[0].IdentityIds) != 0 {
+		identityIds = map[string]*sql.UserIdentity{}
+		for _, id := range input[0].IdentityIds {
+			identityIds[id] = &sql.UserIdentity{}
+		}
+	}
+
 	return &sql.ResourceIdentity{
-		Type: sql.IdentityType(input[0].Type),
+		Type:                   sql.IdentityType(input[0].Type),
+		UserAssignedIdentities: identityIds,
 	}
 }
 
-func (r MsSqlManagedInstanceResource) flattenIdentity(input *sql.ResourceIdentity) []identity.SystemAssigned {
+func (r MsSqlManagedInstanceResource) flattenIdentity(input *sql.ResourceIdentity) []identity.SystemOrUserAssignedList {
 	if input == nil {
 		return nil
 	}
@@ -545,10 +566,20 @@ func (r MsSqlManagedInstanceResource) flattenIdentity(input *sql.ResourceIdentit
 		tenantId = input.TenantID.String()
 	}
 
-	return []identity.SystemAssigned{{
+	var identityIds = make([]string, 0)
+	for k := range input.UserAssignedIdentities {
+		parsedId, err := commonids.ParseUserAssignedIdentityIDInsensitively(k)
+		if err != nil {
+			continue
+		}
+		identityIds = append(identityIds, parsedId.ID())
+	}
+
+	return []identity.SystemOrUserAssignedList{{
 		Type:        identity.Type(input.Type),
 		PrincipalId: principalId,
 		TenantId:    tenantId,
+		IdentityIds: identityIds,
 	}}
 }
 
@@ -577,13 +608,13 @@ func (r MsSqlManagedInstanceResource) expandSkuName(skuName string) (*sql.Sku, e
 
 func (r MsSqlManagedInstanceResource) normalizeSku(sku string) string {
 	switch sku {
-	case "MIBC64G8IH":
+	case "MIBC64G8IH", "BC_G8IH":
 		return "BC_Gen8IH"
-	case "MIBC64G8IM":
+	case "MIBC64G8IM", "BC_G8IM":
 		return "BC_Gen8IM"
-	case "MIGP4G8IH":
+	case "MIGP4G8IH", "GP_G8IH":
 		return "GP_Gen8IH"
-	case "MIGP4G8IM":
+	case "MIGP4G8IM", "GP_G8IM":
 		return "GP_Gen8IM"
 	}
 

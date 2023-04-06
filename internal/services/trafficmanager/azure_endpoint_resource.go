@@ -67,7 +67,8 @@ func resourceAzureEndpoint() *pluginsdk.Resource {
 
 			"weight": {
 				Type:         pluginsdk.TypeInt,
-				Required:     true,
+				Optional:     true,
+				Computed:     true,
 				ValidateFunc: validation.IntBetween(1, 1000),
 			},
 
@@ -147,7 +148,7 @@ func resourceAzureEndpointCreateUpdate(d *pluginsdk.ResourceData, meta interface
 		return fmt.Errorf("parsing `profile_id`: %+v", err)
 	}
 
-	id := endpoints.NewEndpointTypeID(profileId.SubscriptionId, profileId.ResourceGroupName, profileId.ProfileName, endpoints.EndpointTypeAzureEndpoints, d.Get("name").(string))
+	id := endpoints.NewEndpointTypeID(profileId.SubscriptionId, profileId.ResourceGroupName, profileId.TrafficManagerProfileName, endpoints.EndpointTypeAzureEndpoints, d.Get("name").(string))
 	if d.IsNewResource() {
 		existing, err := client.Get(ctx, id)
 		if err != nil {
@@ -174,12 +175,15 @@ func resourceAzureEndpointCreateUpdate(d *pluginsdk.ResourceData, meta interface
 			EndpointStatus:   &status,
 			TargetResourceId: utils.String(d.Get("target_resource_id").(string)),
 			Subnets:          expandEndpointSubnetConfig(d.Get("subnet").([]interface{})),
-			Weight:           utils.Int64(int64(d.Get("weight").(int))),
 		},
 	}
 
 	if priority := d.Get("priority").(int); priority != 0 {
 		params.Properties.Priority = utils.Int64(int64(priority))
+	}
+
+	if weight := d.Get("weight").(int); weight != 0 {
+		params.Properties.Weight = utils.Int64(int64(weight))
 	}
 
 	inputMappings := d.Get("geo_mappings").([]interface{})
@@ -219,7 +223,7 @@ func resourceAzureEndpointRead(d *pluginsdk.ResourceData, meta interface{}) erro
 	}
 
 	d.Set("name", id.EndpointName)
-	d.Set("profile_id", profiles.NewTrafficManagerProfileID(id.SubscriptionId, id.ResourceGroupName, id.ProfileName).ID())
+	d.Set("profile_id", profiles.NewTrafficManagerProfileID(id.SubscriptionId, id.ResourceGroupName, id.TrafficManagerProfileName).ID())
 
 	if model := resp.Model; model != nil {
 		if props := model.Properties; props != nil {

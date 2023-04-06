@@ -5,15 +5,16 @@ import (
 	"log"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/services/preview/appplatform/mgmt/2022-03-01-preview/appplatform"
 	"github.com/hashicorp/terraform-provider-azurerm/helpers/tf"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/clients"
+	"github.com/hashicorp/terraform-provider-azurerm/internal/services/springcloud/migration"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/services/springcloud/parse"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/services/springcloud/validate"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/pluginsdk"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/validation"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/timeouts"
 	"github.com/hashicorp/terraform-provider-azurerm/utils"
+	"github.com/tombuildsstuff/kermit/sdk/appplatform/2022-11-01-preview/appplatform"
 )
 
 func resourceSpringCloudContainerDeployment() *pluginsdk.Resource {
@@ -22,6 +23,11 @@ func resourceSpringCloudContainerDeployment() *pluginsdk.Resource {
 		Read:   resourceSpringCloudContainerDeploymentRead,
 		Update: resourceSpringCloudContainerDeploymentCreateUpdate,
 		Delete: resourceSpringCloudContainerDeploymentDelete,
+
+		SchemaVersion: 1,
+		StateUpgraders: pluginsdk.StateUpgrades(map[int]pluginsdk.StateUpgrade{
+			0: migration.SpringCloudContainerDeploymentV0ToV1{},
+		}),
 
 		Importer: pluginsdk.ImporterValidatingResourceId(func(id string) error {
 			_, err := parse.SpringCloudDeploymentID(id)
@@ -123,30 +129,16 @@ func resourceSpringCloudContainerDeployment() *pluginsdk.Resource {
 							Type:     pluginsdk.TypeString,
 							Optional: true,
 							Computed: true,
-							ValidateFunc: validation.StringInSlice([]string{
-								"500m",
-								"1",
-								"2",
-								"3",
-								"4",
-							}, false),
+							// NOTE: we're intentionally not validating this field since additional values are possible when enabled by the service team
+							ValidateFunc: validation.StringIsNotEmpty,
 						},
 
 						"memory": {
 							Type:     pluginsdk.TypeString,
 							Optional: true,
 							Computed: true,
-							ValidateFunc: validation.StringInSlice([]string{
-								"512Mi",
-								"1Gi",
-								"2Gi",
-								"3Gi",
-								"4Gi",
-								"5Gi",
-								"6Gi",
-								"7Gi",
-								"8Gi",
-							}, false),
+							// NOTE: we're intentionally not validating this field since additional values are possible when enabled by the service team
+							ValidateFunc: validation.StringIsNotEmpty,
 						},
 					},
 				},

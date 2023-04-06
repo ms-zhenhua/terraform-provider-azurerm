@@ -24,7 +24,7 @@ client.Client.Authorizer = authorizer
 
 ```go
 ctx := context.TODO()
-id := attestationproviders.NewAttestationProvidersID("12345678-1234-9876-4563-123456789012", "example-resource-group", "providerValue")
+id := attestationproviders.NewAttestationProvidersID("12345678-1234-9876-4563-123456789012", "example-resource-group", "attestationProviderValue")
 
 payload := attestationproviders.AttestationServiceCreationParams{
 	// ...
@@ -45,7 +45,7 @@ if model := read.Model; model != nil {
 
 ```go
 ctx := context.TODO()
-id := attestationproviders.NewAttestationProvidersID("12345678-1234-9876-4563-123456789012", "example-resource-group", "providerValue")
+id := attestationproviders.NewAttestationProvidersID("12345678-1234-9876-4563-123456789012", "example-resource-group", "attestationProviderValue")
 
 read, err := client.Delete(ctx, id)
 if err != nil {
@@ -61,7 +61,7 @@ if model := read.Model; model != nil {
 
 ```go
 ctx := context.TODO()
-id := attestationproviders.NewAttestationProvidersID("12345678-1234-9876-4563-123456789012", "example-resource-group", "providerValue")
+id := attestationproviders.NewAttestationProvidersID("12345678-1234-9876-4563-123456789012", "example-resource-group", "attestationProviderValue")
 
 read, err := client.Get(ctx, id)
 if err != nil {
@@ -93,7 +93,7 @@ if model := read.Model; model != nil {
 
 ```go
 ctx := context.TODO()
-id := attestationproviders.NewSubscriptionID()
+id := attestationproviders.NewSubscriptionID("12345678-1234-9876-4563-123456789012")
 
 read, err := client.List(ctx, id)
 if err != nil {
@@ -109,7 +109,7 @@ if model := read.Model; model != nil {
 
 ```go
 ctx := context.TODO()
-id := attestationproviders.NewResourceGroupID()
+id := attestationproviders.NewResourceGroupID("12345678-1234-9876-4563-123456789012", "example-resource-group")
 
 read, err := client.ListByResourceGroup(ctx, id)
 if err != nil {
@@ -125,7 +125,7 @@ if model := read.Model; model != nil {
 
 ```go
 ctx := context.TODO()
-id := attestationproviders.NewSubscriptionID()
+id := attestationproviders.NewSubscriptionID("12345678-1234-9876-4563-123456789012")
 
 read, err := client.ListDefault(ctx, id)
 if err != nil {
@@ -141,7 +141,7 @@ if model := read.Model; model != nil {
 
 ```go
 ctx := context.TODO()
-id := attestationproviders.NewAttestationProvidersID("12345678-1234-9876-4563-123456789012", "example-resource-group", "providerValue")
+id := attestationproviders.NewAttestationProvidersID("12345678-1234-9876-4563-123456789012", "example-resource-group", "attestationProviderValue")
 
 payload := attestationproviders.AttestationServicePatchParams{
 	// ...

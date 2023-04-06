@@ -87,7 +87,7 @@ The following arguments are supported:
 
 ~> **NOTE:** Either `billing_scope_id` or `subscription_id` has to be specified.
 
-* `workload` - (Optional) The workload type of the Subscription.  Possible values are `Production` (default) and `DevTest`. Changing this forces a new Subscription to be created.
+* `workload` - (Optional) The workload type of the Subscription. Possible values are `Production` (default) and `DevTest`. Changing this forces a new Subscription to be created.
 
 * `tags` - (Optional) A mapping of tags to assign to the Subscription.
 
@@ -101,7 +101,7 @@ In addition to the Arguments listed above - the following Attributes are exporte
 
 ## Timeouts
 
-The `timeouts` block allows you to specify [timeouts](https://www.terraform.io/docs/configuration/resources.html#timeouts) for certain actions:
+The `timeouts` block allows you to specify [timeouts](https://www.terraform.io/language/resources/syntax#operation-timeouts) for certain actions:
 
 * `create` - (Defaults to 30 minutes) Used when creating the Subscription.
 * `read` - (Defaults to 5 minutes) Used when retrieving the Subscription.

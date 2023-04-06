@@ -6,15 +6,16 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/services/preview/appplatform/mgmt/2022-03-01-preview/appplatform"
 	"github.com/hashicorp/terraform-provider-azurerm/helpers/tf"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/clients"
+	"github.com/hashicorp/terraform-provider-azurerm/internal/services/springcloud/migration"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/services/springcloud/parse"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/services/springcloud/validate"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/pluginsdk"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/validation"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/timeouts"
 	"github.com/hashicorp/terraform-provider-azurerm/utils"
+	"github.com/tombuildsstuff/kermit/sdk/appplatform/2022-11-01-preview/appplatform"
 )
 
 func resourceSpringCloudJavaDeployment() *pluginsdk.Resource {
@@ -23,6 +24,11 @@ func resourceSpringCloudJavaDeployment() *pluginsdk.Resource {
 		Read:   resourceSpringCloudJavaDeploymentRead,
 		Update: resourceSpringCloudJavaDeploymentUpdate,
 		Delete: resourceSpringCloudJavaDeploymentDelete,
+
+		SchemaVersion: 1,
+		StateUpgraders: pluginsdk.StateUpgrades(map[int]pluginsdk.StateUpgrade{
+			0: migration.SpringCloudJavaDeploymentV0ToV1{},
+		}),
 
 		Importer: pluginsdk.ImporterValidatingResourceId(func(id string) error {
 			_, err := parse.SpringCloudDeploymentID(id)
@@ -356,13 +362,8 @@ func resourceSprintCloudJavaDeploymentSchema() map[string]*pluginsdk.Schema {
 						Type:     pluginsdk.TypeString,
 						Optional: true,
 						Computed: true,
-						ValidateFunc: validation.StringInSlice([]string{
-							"500m",
-							"1",
-							"2",
-							"3",
-							"4",
-						}, false),
+						// NOTE: we're intentionally not validating this field since additional values are possible when enabled by the service team
+						ValidateFunc: validation.StringIsNotEmpty,
 					},
 
 					// The value returned in GET will be recalculated by the service if the deprecated "memory_in_gb" is honored, so make this property as Computed.
@@ -370,17 +371,8 @@ func resourceSprintCloudJavaDeploymentSchema() map[string]*pluginsdk.Schema {
 						Type:     pluginsdk.TypeString,
 						Optional: true,
 						Computed: true,
-						ValidateFunc: validation.StringInSlice([]string{
-							"512Mi",
-							"1Gi",
-							"2Gi",
-							"3Gi",
-							"4Gi",
-							"5Gi",
-							"6Gi",
-							"7Gi",
-							"8Gi",
-						}, false),
+						// NOTE: we're intentionally not validating this field since additional values are possible when enabled by the service team
+						ValidateFunc: validation.StringIsNotEmpty,
 					},
 				},
 			},

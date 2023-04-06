@@ -147,7 +147,7 @@ func resourcePrivateDnsARecordRead(d *pluginsdk.ResourceData, meta interface{}) 
 	}
 
 	d.Set("name", id.RelativeRecordSetName)
-	d.Set("zone_name", id.PrivateZoneName)
+	d.Set("zone_name", id.PrivateDnsZoneName)
 	d.Set("resource_group_name", id.ResourceGroupName)
 
 	if model := resp.Model; model != nil {
@@ -192,11 +192,11 @@ func flattenAzureRmPrivateDnsARecords(records *[]recordsets.ARecord) []string {
 	}
 
 	for _, record := range *records {
-		if record.Ipv4Address == nil {
+		if record.IPv4Address == nil {
 			continue
 		}
 
-		results = append(results, *record.Ipv4Address)
+		results = append(results, *record.IPv4Address)
 	}
 
 	return results
@@ -209,7 +209,7 @@ func expandAzureRmPrivateDnsARecords(d *pluginsdk.ResourceData) *[]recordsets.AR
 	for i, v := range recordStrings {
 		ipv4 := v.(string)
 		records[i] = recordsets.ARecord{
-			Ipv4Address: &ipv4,
+			IPv4Address: &ipv4,
 		}
 	}
 

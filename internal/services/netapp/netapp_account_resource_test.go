@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/hashicorp/go-azure-sdk/resource-manager/netapp/2021-10-01/netappaccounts"
+	"github.com/hashicorp/go-azure-sdk/resource-manager/netapp/2022-05-01/netappaccounts"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/acceptance"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/acceptance/check"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/clients"
@@ -85,7 +85,7 @@ func testAccNetAppAccount_complete(t *testing.T) {
 			Check: acceptance.ComposeTestCheckFunc(
 				check.That(data.ResourceName).ExistsInAzure(r),
 				check.That(data.ResourceName).Key("active_directory.#").HasValue("1"),
-				check.That(data.ResourceName).Key("tags.%").HasValue("1"),
+				check.That(data.ResourceName).Key("tags.%").HasValue("2"),
 				check.That(data.ResourceName).Key("tags.FoO").HasValue("BaR"),
 			),
 		},
@@ -103,7 +103,7 @@ func testAccNetAppAccount_update(t *testing.T) {
 			Check: acceptance.ComposeTestCheckFunc(
 				check.That(data.ResourceName).ExistsInAzure(r),
 				check.That(data.ResourceName).Key("active_directory.#").HasValue("0"),
-				check.That(data.ResourceName).Key("tags.%").HasValue("0"),
+				check.That(data.ResourceName).Key("tags.%").HasValue("1"),
 			),
 		},
 		{
@@ -111,7 +111,7 @@ func testAccNetAppAccount_update(t *testing.T) {
 			Check: acceptance.ComposeTestCheckFunc(
 				check.That(data.ResourceName).ExistsInAzure(r),
 				check.That(data.ResourceName).Key("active_directory.#").HasValue("1"),
-				check.That(data.ResourceName).Key("tags.%").HasValue("1"),
+				check.That(data.ResourceName).Key("tags.%").HasValue("2"),
 				check.That(data.ResourceName).Key("tags.FoO").HasValue("BaR"),
 			),
 		},
@@ -148,6 +148,10 @@ resource "azurerm_netapp_account" "test" {
   name                = "acctest-NetAppAccount-%d"
   location            = azurerm_resource_group.test.location
   resource_group_name = azurerm_resource_group.test.name
+
+  tags = {
+    "CreatedOnDate" = "2022-07-08T23:50:21Z",
+  }
 }
 `, data.RandomInteger, data.Locations.Primary, data.RandomInteger)
 }
@@ -160,6 +164,10 @@ resource "azurerm_netapp_account" "import" {
   name                = azurerm_netapp_account.test.name
   location            = azurerm_netapp_account.test.location
   resource_group_name = azurerm_netapp_account.test.resource_group_name
+
+  tags = {
+    "CreatedOnDate" = "2022-07-08T23:50:21Z",
+  }
 }
 `, r.basicConfig(data))
 }
@@ -190,7 +198,8 @@ resource "azurerm_netapp_account" "test" {
   }
 
   tags = {
-    "FoO" = "BaR"
+    "CreatedOnDate" = "2022-07-08T23:50:21Z",
+    "FoO"           = "BaR"
   }
 }
 `, data.RandomInteger, data.Locations.Primary, data.RandomInteger)

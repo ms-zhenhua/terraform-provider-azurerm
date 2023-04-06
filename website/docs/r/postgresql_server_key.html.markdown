@@ -44,7 +44,7 @@ resource "azurerm_key_vault_access_policy" "client" {
   tenant_id    = data.azurerm_client_config.current.tenant_id
   object_id    = data.azurerm_client_config.current.object_id
 
-  key_permissions    = ["Get", "Create", "Delete", "List", "Restore", "Recover", "UnwrapKey", "WrapKey", "Purge", "Encrypt", "Decrypt", "Sign", "Verify"]
+  key_permissions    = ["Get", "Create", "Delete", "List", "Restore", "Recover", "UnwrapKey", "WrapKey", "Purge", "Encrypt", "Decrypt", "Sign", "Verify", "GetRotationPolicy"]
   secret_permissions = ["Get"]
 }
 
@@ -104,12 +104,12 @@ The following attributes are exported in addition to the arguments listed above:
 
 ## Timeouts
 
-The `timeouts` block allows you to specify [timeouts](https://www.terraform.io/docs/configuration/resources.html#timeouts) for certain actions:
+The `timeouts` block allows you to specify [timeouts](https://www.terraform.io/language/resources/syntax#operation-timeouts) for certain actions:
 
-* `create` - (Defaults to 30 minutes) Used when creating the PostgreSQL Server Key.
-* `update` - (Defaults to 30 minutes) Used when updating the PostgreSQL Server Key.
+* `create` - (Defaults to 60 minutes) Used when creating the PostgreSQL Server Key.
+* `update` - (Defaults to 60 minutes) Used when updating the PostgreSQL Server Key.
 * `read` - (Defaults to 5 minutes) Used when retrieving the PostgreSQL Server Key.
-* `delete` - (Defaults to 30 minutes) Used when deleting the PostgreSQL Server Key.
+* `delete` - (Defaults to 60 minutes) Used when deleting the PostgreSQL Server Key.
 
 ## Import
 

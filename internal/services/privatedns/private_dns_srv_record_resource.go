@@ -1,6 +1,7 @@
 package privatedns
 
 import (
+	"bytes"
 	"fmt"
 	"time"
 
@@ -172,7 +173,7 @@ func resourcePrivateDnsSrvRecordRead(d *pluginsdk.ResourceData, meta interface{}
 	}
 
 	d.Set("name", id.RelativeRecordSetName)
-	d.Set("zone_name", id.PrivateZoneName)
+	d.Set("zone_name", id.PrivateDnsZoneName)
 	d.Set("resource_group_name", id.ResourceGroupName)
 
 	if model := resp.Model; model != nil {
@@ -251,4 +252,17 @@ func expandAzureRmPrivateDnsSrvRecords(d *pluginsdk.ResourceData) *[]recordsets.
 	}
 
 	return &records
+}
+
+func resourcePrivateDnsSrvRecordHash(v interface{}) int {
+	var buf bytes.Buffer
+
+	if m, ok := v.(map[string]interface{}); ok {
+		buf.WriteString(fmt.Sprintf("%d-", m["priority"].(int)))
+		buf.WriteString(fmt.Sprintf("%d-", m["weight"].(int)))
+		buf.WriteString(fmt.Sprintf("%d-", m["port"].(int)))
+		buf.WriteString(fmt.Sprintf("%s-", m["target"].(string)))
+	}
+
+	return pluginsdk.HashString(buf.String())
 }

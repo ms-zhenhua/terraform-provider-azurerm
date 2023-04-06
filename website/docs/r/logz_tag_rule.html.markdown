@@ -25,7 +25,6 @@ resource "azurerm_logz_monitor" "example" {
   plan {
     billing_cycle  = "MONTHLY"
     effective_date = "2022-06-06T00:00:00Z"
-    plan_id        = "100gb14days"
     usage_type     = "COMMITTED"
   }
 
@@ -90,7 +89,7 @@ In addition to the Arguments listed above - the following Attributes are exporte
 
 ## Timeouts
 
-The `timeouts` block allows you to specify [timeouts](https://www.terraform.io/docs/configuration/resources.html#timeouts) for certain actions:
+The `timeouts` block allows you to specify [timeouts](https://www.terraform.io/language/resources/syntax#operation-timeouts) for certain actions:
 
 * `create` - (Defaults to 30 minutes) Used when creating the logz Tag Rule.
 * `read` - (Defaults to 5 minutes) Used when retrieving the logz Tag Rule.

@@ -70,6 +70,21 @@ func TestAccDataSourceKubernetesCluster_roleBasedAccessControl(t *testing.T) {
 	})
 }
 
+func TestAccDataSourceKubernetesCluster_roleBasedAccessControlAAD_VOneDotTwoFourDotNine(t *testing.T) {
+	data := acceptance.BuildTestData(t, "data.azurerm_kubernetes_cluster", "test")
+	r := KubernetesClusterDataSource{}
+
+	data.DataSourceTest(t, []acceptance.TestStep{
+		{
+			Config: r.roleBasedAccessControlAADManagedConfigVOneDotTwoFourDotNine(data),
+			Check: acceptance.ComposeTestCheckFunc(
+				check.That(data.ResourceName).Key("kube_config.#").HasValue("1"),
+				check.That(data.ResourceName).Key("kube_config.0.host").IsSet(),
+			),
+		},
+	})
+}
+
 func TestAccDataSourceKubernetesCluster_roleBasedAccessControlAAD(t *testing.T) {
 	data := acceptance.BuildTestData(t, "data.azurerm_kubernetes_cluster", "test")
 	r := KubernetesClusterDataSource{}
@@ -568,6 +583,17 @@ data "azurerm_kubernetes_cluster" "test" {
 `, KubernetesClusterResource{}.roleBasedAccessControlConfig(data))
 }
 
+func (KubernetesClusterDataSource) roleBasedAccessControlAADManagedConfigVOneDotTwoFourDotNine(data acceptance.TestData) string {
+	return fmt.Sprintf(`
+%s
+
+data "azurerm_kubernetes_cluster" "test" {
+  name                = azurerm_kubernetes_cluster.test.name
+  resource_group_name = azurerm_kubernetes_cluster.test.resource_group_name
+}
+`, KubernetesClusterResource{}.roleBasedAccessControlAADManagedConfigVOneDotTwoFourDotNine(data, ""))
+}
+
 func (KubernetesClusterDataSource) localAccountDisabled(data acceptance.TestData, tenantId string) string {
 	return fmt.Sprintf(`
 %s
@@ -653,7 +679,7 @@ data "azurerm_kubernetes_cluster" "test" {
   name                = azurerm_kubernetes_cluster.test.name
   resource_group_name = azurerm_kubernetes_cluster.test.resource_group_name
 }
-`, KubernetesClusterResource{}.advancedNetworkingCompleteConfig(data, "azure"))
+`, KubernetesClusterResource{}.advancedNetworkingCompleteConfig(data, "azure", true))
 }
 
 func (KubernetesClusterDataSource) advancedNetworkingAzureCalicoPolicyCompleteConfig(data acceptance.TestData) string {
@@ -697,7 +723,7 @@ data "azurerm_kubernetes_cluster" "test" {
   name                = azurerm_kubernetes_cluster.test.name
   resource_group_name = azurerm_kubernetes_cluster.test.resource_group_name
 }
-`, KubernetesClusterResource{}.advancedNetworkingCompleteConfig(data, "kubenet"))
+`, KubernetesClusterResource{}.advancedNetworkingCompleteConfig(data, "kubenet", true))
 }
 
 func (KubernetesClusterDataSource) addOnProfileOMSConfig(data acceptance.TestData) string {

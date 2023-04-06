@@ -6,14 +6,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hashicorp/go-azure-helpers/resourcemanager/location"
-
-	"github.com/hashicorp/go-azure-helpers/resourcemanager/zones"
-
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/commonschema"
+	"github.com/hashicorp/go-azure-helpers/resourcemanager/location"
+	"github.com/hashicorp/go-azure-helpers/resourcemanager/zones"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-
-	"github.com/Azure/azure-sdk-for-go/services/network/mgmt/2021-08-01/network"
 	"github.com/hashicorp/terraform-provider-azurerm/helpers/azure"
 	"github.com/hashicorp/terraform-provider-azurerm/helpers/tf"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/clients"
@@ -28,9 +24,10 @@ import (
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/validation"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/timeouts"
 	"github.com/hashicorp/terraform-provider-azurerm/utils"
+	"github.com/tombuildsstuff/kermit/sdk/network/2022-07-01/network"
 )
 
-var azureFirewallResourceName = "azurerm_firewall"
+var AzureFirewallResourceName = "azurerm_firewall"
 
 func resourceFirewall() *pluginsdk.Resource {
 	resource := pluginsdk.Resource{
@@ -58,9 +55,9 @@ func resourceFirewall() *pluginsdk.Resource {
 				ValidateFunc: validate.FirewallName,
 			},
 
-			"location": azure.SchemaLocation(),
+			"location": commonschema.Location(),
 
-			"resource_group_name": azure.SchemaResourceGroupName(),
+			"resource_group_name": commonschema.ResourceGroupName(),
 
 			//lintignore:S013
 			"sku_name": {
@@ -77,7 +74,6 @@ func resourceFirewall() *pluginsdk.Resource {
 			"sku_tier": {
 				Type:     pluginsdk.TypeString,
 				Required: true,
-				ForceNew: true,
 				ValidateFunc: validation.StringInSlice([]string{
 					string(network.AzureFirewallSkuTierPremium),
 					string(network.AzureFirewallSkuTierStandard),
@@ -267,7 +263,7 @@ func resourceFirewallCreateUpdate(d *pluginsdk.ResourceData, meta interface{}) e
 		Tags: tags.Expand(t),
 	}
 
-	zones := zones.Expand(d.Get("zones").(*schema.Set).List())
+	zones := zones.ExpandUntyped(d.Get("zones").(*schema.Set).List())
 	if len(zones) > 0 {
 		parameters.Zones = &zones
 	}
@@ -287,6 +283,14 @@ func resourceFirewallCreateUpdate(d *pluginsdk.ResourceData, meta interface{}) e
 			*vnetToLock = append(*vnetToLock, (*mgmtVirtualNetworkName)[0])
 		}
 		if *mgmtIPConfig != nil {
+			if parameters.IPConfigurations != nil {
+				for k, v := range *parameters.IPConfigurations {
+					if v.Name != nil && (*mgmtIPConfig)[0].Name != nil && *v.Name == *(*mgmtIPConfig)[0].Name {
+						return fmt.Errorf("`management_ip_configuration.0.name` must not be the same as `ip_configuration.%d.name`", k)
+					}
+				}
+			}
+
 			parameters.ManagementIPConfiguration = &(*mgmtIPConfig)[0]
 		}
 	}
@@ -331,8 +335,14 @@ func resourceFirewallCreateUpdate(d *pluginsdk.ResourceData, meta interface{}) e
 		}
 	}
 
-	locks.ByName(id.AzureFirewallName, azureFirewallResourceName)
-	defer locks.UnlockByName(id.AzureFirewallName, azureFirewallResourceName)
+	if policyId, ok := d.GetOk("firewall_policy_id"); ok {
+		id, _ := parse.FirewallPolicyID(policyId.(string))
+		locks.ByName(id.Name, AzureFirewallPolicyResourceName)
+		defer locks.UnlockByName(id.Name, AzureFirewallPolicyResourceName)
+	}
+
+	locks.ByName(id.AzureFirewallName, AzureFirewallResourceName)
+	defer locks.UnlockByName(id.AzureFirewallName, AzureFirewallResourceName)
 
 	locks.MultipleByName(vnetToLock, VirtualNetworkResourceName)
 	defer locks.UnlockMultipleByName(vnetToLock, VirtualNetworkResourceName)
@@ -395,7 +405,7 @@ func resourceFirewallRead(d *pluginsdk.ResourceData, meta interface{}) error {
 	d.Set("resource_group_name", id.ResourceGroup)
 
 	d.Set("location", location.NormalizeNilable(read.Location))
-	d.Set("zones", zones.Flatten(read.Zones))
+	d.Set("zones", zones.FlattenUntyped(read.Zones))
 
 	if props := read.AzureFirewallPropertiesFormat; props != nil {
 		if err := d.Set("ip_configuration", flattenFirewallIPConfigurations(props.IPConfigurations)); err != nil {
@@ -501,8 +511,14 @@ func resourceFirewallDelete(d *pluginsdk.ResourceData, meta interface{}) error {
 		}
 	}
 
-	locks.ByName(id.AzureFirewallName, azureFirewallResourceName)
-	defer locks.UnlockByName(id.AzureFirewallName, azureFirewallResourceName)
+	if read.FirewallPolicy != nil && read.FirewallPolicy.ID != nil {
+		id, _ := parse.FirewallPolicyID(*read.FirewallPolicy.ID)
+		locks.ByName(id.Name, AzureFirewallPolicyResourceName)
+		defer locks.UnlockByName(id.Name, AzureFirewallPolicyResourceName)
+	}
+
+	locks.ByName(id.AzureFirewallName, AzureFirewallResourceName)
+	defer locks.UnlockByName(id.AzureFirewallName, AzureFirewallResourceName)
 
 	locks.MultipleByName(&virtualNetworkNamesToLock, VirtualNetworkResourceName)
 	defer locks.UnlockMultipleByName(&virtualNetworkNamesToLock, VirtualNetworkResourceName)

@@ -1,30 +1,32 @@
 package loadbalancer
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/hashicorp/go-azure-helpers/resourcemanager/commonschema"
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/edgezones"
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/location"
-
-	"github.com/hashicorp/go-azure-helpers/resourcemanager/commonschema"
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/zones"
-	"github.com/hashicorp/terraform-provider-azurerm/internal/services/loadbalancer/validate"
-	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/state"
-	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/suppress"
-
-	"github.com/Azure/azure-sdk-for-go/services/network/mgmt/2021-08-01/network"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-provider-azurerm/helpers/azure"
 	"github.com/hashicorp/terraform-provider-azurerm/helpers/tf"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/clients"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/services/loadbalancer/parse"
+	"github.com/hashicorp/terraform-provider-azurerm/internal/services/loadbalancer/validate"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tags"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/state"
+	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/suppress"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/validation"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/timeouts"
 	"github.com/hashicorp/terraform-provider-azurerm/utils"
+	"github.com/tombuildsstuff/kermit/sdk/network/2022-07-01/network"
 )
 
 func resourceArmLoadBalancer() *pluginsdk.Resource {
@@ -47,6 +49,30 @@ func resourceArmLoadBalancer() *pluginsdk.Resource {
 		},
 
 		Schema: resourceArmLoadBalancerSchema(),
+
+		CustomizeDiff: pluginsdk.CustomDiffWithAll(
+			pluginsdk.ForceNewIf("frontend_ip_configuration", func(ctx context.Context, d *schema.ResourceDiff, meta interface{}) bool {
+				old, new := d.GetChange("frontend_ip_configuration")
+				if len(old.([]interface{})) == 0 && len(new.([]interface{})) > 0 || len(old.([]interface{})) > 0 && len(new.([]interface{})) == 0 {
+					return false
+				} else {
+					for i, nc := range new.([]interface{}) {
+						dataNew := nc.(map[string]interface{})
+						for _, oc := range old.([]interface{}) {
+							dataOld := oc.(map[string]interface{})
+							if dataOld["name"].(string) == dataNew["name"].(string) {
+								if !reflect.DeepEqual(dataOld["zones"].(*pluginsdk.Set).List(), dataNew["zones"].(*pluginsdk.Set).List()) {
+									// set ForceNew to true when the `frontend_ip_configuration.#.zones` is changed.
+									d.ForceNew("frontend_ip_configuration." + strconv.Itoa(i) + ".zones")
+									break
+								}
+							}
+						}
+					}
+				}
+				return false
+			}),
+		),
 	}
 }
 
@@ -90,11 +116,7 @@ func resourceArmLoadBalancerCreateUpdate(d *pluginsdk.ResourceData, meta interfa
 	properties := network.LoadBalancerPropertiesFormat{}
 
 	if _, ok := d.GetOk("frontend_ip_configuration"); ok {
-		frontendIPConfigurations, err := expandAzureRmLoadBalancerFrontendIpConfigurations(d)
-		if err != nil {
-			return err
-		}
-		properties.FrontendIPConfigurations = frontendIPConfigurations
+		properties.FrontendIPConfigurations = expandAzureRmLoadBalancerFrontendIpConfigurations(d)
 	}
 
 	loadBalancer := network.LoadBalancer{
@@ -199,7 +221,7 @@ func resourceArmLoadBalancerDelete(d *pluginsdk.ResourceData, meta interface{}) 
 	return nil
 }
 
-func expandAzureRmLoadBalancerFrontendIpConfigurations(d *pluginsdk.ResourceData) (*[]network.FrontendIPConfiguration, error) {
+func expandAzureRmLoadBalancerFrontendIpConfigurations(d *pluginsdk.ResourceData) *[]network.FrontendIPConfiguration {
 	configs := d.Get("frontend_ip_configuration").([]interface{})
 	frontEndConfigs := make([]network.FrontendIPConfiguration, 0, len(configs))
 
@@ -248,7 +270,7 @@ func expandAzureRmLoadBalancerFrontendIpConfigurations(d *pluginsdk.ResourceData
 			FrontendIPConfigurationPropertiesFormat: &properties,
 		}
 
-		zones := zones.Expand(data["zones"].(*pluginsdk.Set).List())
+		zones := zones.ExpandUntyped(data["zones"].(*pluginsdk.Set).List())
 		if len(zones) > 0 {
 			frontEndConfig.Zones = &zones
 		}
@@ -256,7 +278,7 @@ func expandAzureRmLoadBalancerFrontendIpConfigurations(d *pluginsdk.ResourceData
 		frontEndConfigs = append(frontEndConfigs, frontEndConfig)
 	}
 
-	return &frontEndConfigs, nil
+	return &frontEndConfigs
 }
 
 func flattenLoadBalancerFrontendIpConfiguration(ipConfigs *[]network.FrontendIPConfiguration) []interface{} {
@@ -350,7 +372,7 @@ func flattenLoadBalancerFrontendIpConfiguration(ipConfigs *[]network.FrontendIPC
 			"private_ip_address_allocation": privateIPAllocationMethod,
 			"public_ip_prefix_id":           publicIpPrefixId,
 			"subnet_id":                     subnetId,
-			"zones":                         zones.Flatten(config.Zones),
+			"zones":                         zones.FlattenUntyped(config.Zones),
 		}
 
 		result = append(result, out)
@@ -366,9 +388,9 @@ func resourceArmLoadBalancerSchema() map[string]*pluginsdk.Schema {
 			ForceNew: true,
 		},
 
-		"location": azure.SchemaLocation(),
+		"location": commonschema.Location(),
 
-		"resource_group_name": azure.SchemaResourceGroupName(),
+		"resource_group_name": commonschema.ResourceGroupName(),
 
 		"edge_zone": commonschema.EdgeZoneOptionalForceNew(),
 
@@ -497,7 +519,7 @@ func resourceArmLoadBalancerSchema() map[string]*pluginsdk.Schema {
 						Set: pluginsdk.HashString,
 					},
 
-					"zones": commonschema.ZonesMultipleOptionalForceNew(),
+					"zones": commonschema.ZonesMultipleOptional(),
 
 					"id": {
 						Type:     pluginsdk.TypeString,

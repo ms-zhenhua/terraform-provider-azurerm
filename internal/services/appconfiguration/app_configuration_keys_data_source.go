@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/Azure/go-autorest/autorest"
-	"github.com/hashicorp/terraform-provider-azurerm/helpers/azure"
+	"github.com/hashicorp/go-azure-sdk/resource-manager/appconfiguration/2022-05-01/configurationstores"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/sdk"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/services/appconfiguration/parse"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tags"
@@ -44,7 +44,7 @@ func (k KeysDataSource) Arguments() map[string]*pluginsdk.Schema {
 		"configuration_store_id": {
 			Type:         pluginsdk.TypeString,
 			Required:     true,
-			ValidateFunc: azure.ValidateResourceID,
+			ValidateFunc: configurationstores.ValidateConfigurationStoreID,
 		},
 		"key": {
 			Type:     pluginsdk.TypeString,
@@ -132,13 +132,16 @@ func (k KeysDataSource) Read() sdk.ResourceFunc {
 				Key:                  decodedKey,
 				Label:                model.Label,
 			}
-
-			client, err := metadata.Client.AppConfiguration.DataPlaneClient(ctx, model.ConfigurationStoreId)
-			if client == nil {
-				return fmt.Errorf("building data plane client: app configuration %q was not found", model.ConfigurationStoreId)
-			}
+			// @favoretti: API returns pagination nextLink (Link header) without complete URI, only path:
+			// Link: "</kv?somepath...>; rel=next;"
+			// whereas the client expects a complete URI to be present and therefore fails to fetch all results if
+			// store contains more than 100 entries
+			client, err := metadata.Client.AppConfiguration.LinkWorkaroundDataPlaneClient(ctx, model.ConfigurationStoreId)
 			if err != nil {
 				return err
+			}
+			if client == nil {
+				return fmt.Errorf("building data plane client: app configuration %q was not found", model.ConfigurationStoreId)
 			}
 
 			iter, err := client.GetKeyValuesComplete(ctx, decodedKey, model.Label, "", "", []string{})
@@ -156,8 +159,8 @@ func (k KeysDataSource) Read() sdk.ResourceFunc {
 			for iter.NotDone() {
 				kv := iter.Value()
 				var krmodel KeyDataSourceModel
-				krmodel.Key = *kv.Key
-				krmodel.Label = *kv.Label
+				krmodel.Key = utils.NormalizeNilableString(kv.Key)
+				krmodel.Label = utils.NormalizeNilableString(kv.Label)
 				if contentType := utils.NormalizeNilableString(kv.ContentType); contentType != VaultKeyContentType {
 					krmodel.Type = KeyTypeKV
 					krmodel.ContentType = contentType

@@ -6,13 +6,13 @@ import (
 	"os"
 	"testing"
 
-	"github.com/Azure/azure-sdk-for-go/services/domainservices/mgmt/2020-01-01/aad"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/resource-manager/aad/2021-05-01/domainservices"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/acceptance"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/acceptance/check"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/clients"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/services/domainservices/parse"
+	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/pluginsdk"
 	"github.com/hashicorp/terraform-provider-azurerm/utils"
 )
 
@@ -79,10 +79,10 @@ func TestAccDomainServiceTrust_basic(t *testing.T) {
 		t.Skipf("Skipping: %v", err)
 	}
 
-	data.ResourceSequentialTest(t, r, []resource.TestStep{
+	data.ResourceSequentialTest(t, r, []acceptance.TestStep{
 		{
 			Config: r.basic(data),
-			Check: resource.ComposeTestCheckFunc(
+			Check: acceptance.ComposeTestCheckFunc(
 				check.That(data.ResourceName).ExistsInAzure(r),
 			),
 		},
@@ -97,10 +97,10 @@ func TestAccDomainServiceTrust_requiresImport(t *testing.T) {
 		t.Skipf("Skipping: %v", err)
 	}
 
-	data.ResourceSequentialTest(t, r, []resource.TestStep{
+	data.ResourceSequentialTest(t, r, []acceptance.TestStep{
 		{
 			Config: r.basic(data),
-			Check: resource.ComposeTestCheckFunc(
+			Check: acceptance.ComposeTestCheckFunc(
 				check.That(data.ResourceName).ExistsInAzure(r),
 			),
 		},
@@ -108,7 +108,7 @@ func TestAccDomainServiceTrust_requiresImport(t *testing.T) {
 	})
 }
 
-func (r DomainServiceTrustResource) Exists(ctx context.Context, clients *clients.Client, state *terraform.InstanceState) (*bool, error) {
+func (r DomainServiceTrustResource) Exists(ctx context.Context, clients *clients.Client, state *pluginsdk.InstanceState) (*bool, error) {
 	client := clients.DomainServices.DomainServicesClient
 
 	id, err := parse.DomainServiceTrustID(state.ID)
@@ -116,15 +116,23 @@ func (r DomainServiceTrustResource) Exists(ctx context.Context, clients *clients
 		return nil, err
 	}
 
-	resp, err := client.Get(ctx, id.ResourceGroup, id.DomainServiceName)
+	idsdk := domainservices.NewDomainServiceID(id.SubscriptionId, id.ResourceGroup, id.DomainServiceName)
+
+	resp, err := client.Get(ctx, idsdk)
 	if err != nil {
-		if utils.ResponseWasNotFound(resp.Response) {
+		if response.WasNotFound(resp.HttpResponse) {
 			return utils.Bool(false), nil
 		}
 		return nil, err
 	}
-	existingTrusts := []aad.ForestTrust{}
-	if props := resp.DomainServiceProperties; props != nil {
+
+	model := resp.Model
+	if model == nil {
+		return nil, fmt.Errorf("reading %s: returned with null model", idsdk)
+	}
+
+	existingTrusts := []domainservices.ForestTrust{}
+	if props := model.Properties; props != nil {
 		if fsettings := props.ResourceForestSettings; fsettings != nil {
 			if settings := fsettings.Settings; settings != nil {
 				existingTrusts = *settings
@@ -170,7 +178,7 @@ resource "azurerm_active_directory_domain_service_trust" "import" {
 `, template)
 }
 
-func (r DomainServiceTrustResource) template(data acceptance.TestData) string {
+func (r DomainServiceTrustResource) template(_ acceptance.TestData) string {
 	return fmt.Sprintf(`
 provider "azurerm" {
   features {}

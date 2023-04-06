@@ -47,7 +47,7 @@ The following arguments are supported:
 
 ## Attributes Reference
 
-In addition to the Arguments listed above - the following Attributes are exported: 
+In addition to the Arguments listed above - the following Attributes are exported:
 
 * `id` - The ID of the MSSQL Server DNS Alias.
 
@@ -55,11 +55,11 @@ In addition to the Arguments listed above - the following Attributes are exporte
 
 ## Timeouts
 
-The `timeouts` block allows you to specify [timeouts](https://www.terraform.io/docs/configuration/resources.html#timeouts) for certain actions:
+The `timeouts` block allows you to specify [timeouts](https://www.terraform.io/language/resources/syntax#operation-timeouts) for certain actions:
 
-* `create` - (Defaults to 5 minutes) Used when creating the MSSQL Server DNS Alias.
+* `create` - (Defaults to 30 minutes) Used when creating the MSSQL Server DNS Alias.
 * `read` - (Defaults to 5 minutes) Used when retrieving the MSSQL Server DNS Alias.
-* `delete` - (Defaults to 5 minutes) Used when deleting the MSSQL Server DNS Alias.
+* `delete` - (Defaults to 10 minutes) Used when deleting the MSSQL Server DNS Alias.
 
 ## Import
 

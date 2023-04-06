@@ -65,11 +65,11 @@ resource "azurerm_storage_account_network_rules" "example" {
 
 The following arguments are supported:
 
-* `storage_account_id` - (Optional) Specifies the ID of the storage account. Changing this forces a new resource to be created.
+* `storage_account_id` - (Required) Specifies the ID of the storage account. Changing this forces a new resource to be created.
 
 * `default_action` - (Required) Specifies the default action of allow or deny when no other rules match. Valid options are `Deny` or `Allow`.
 
-* `bypass` - (Optional)  Specifies whether traffic is bypassed for Logging/Metrics/AzureServices. Valid options are any combination of `Logging`, `Metrics`, `AzureServices`, or `None`.
+* `bypass` - (Optional) Specifies whether traffic is bypassed for Logging/Metrics/AzureServices. Valid options are any combination of `Logging`, `Metrics`, `AzureServices`, or `None`.
 
 -> **NOTE** User has to explicitly set `bypass` to empty slice (`[]`) to remove it.
 
@@ -81,7 +81,7 @@ The following arguments are supported:
 
 -> **NOTE** User has to explicitly set `ip_rules` to empty slice (`[]`) to remove it.
 
-* `virtual_network_subnet_ids` - (Optional) A list of virtual network subnet ids to to secure the storage account.
+* `virtual_network_subnet_ids` - (Optional) A list of virtual network subnet ids to secure the storage account.
 
 -> **NOTE** User has to explicitly set `virtual_network_subnet_ids` to empty slice (`[]`) to remove it.
 
@@ -95,7 +95,6 @@ A `private_link_access` block supports the following:
 
 * `endpoint_tenant_id` - (Optional) The tenant id of the resource of the resource access rule to be granted access. Defaults to the current tenant id.
 
-
 ## Attributes Reference
 
 The following attributes are exported in addition to the arguments listed above:
@@ -104,7 +103,7 @@ The following attributes are exported in addition to the arguments listed above:
 
 ## Timeouts
 
-The `timeouts` block allows you to specify [timeouts](https://www.terraform.io/docs/configuration/resources.html#timeouts) for certain actions:
+The `timeouts` block allows you to specify [timeouts](https://www.terraform.io/language/resources/syntax#operation-timeouts) for certain actions:
 
 * `create` - (Defaults to 60 minutes) Used when creating the  Network Rules for this Storage Account.
 * `update` - (Defaults to 60 minutes) Used when updating the Network Rules for this Storage Account.
