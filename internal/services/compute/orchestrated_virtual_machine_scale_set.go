@@ -294,6 +294,26 @@ func OrchestratedVirtualMachineScaleSetNetworkInterfaceSchema() *pluginsdk.Schem
 
 				"ip_configuration": orchestratedVirtualMachineScaleSetIPConfigurationSchema(),
 
+				"auxiliary_mode": {
+					Type:     pluginsdk.TypeString,
+					Optional: true,
+					ValidateFunc: validation.StringInSlice([]string{
+						string(virtualmachinescalesets.NetworkInterfaceAuxiliaryModeAcceleratedConnections),
+						string(virtualmachinescalesets.NetworkInterfaceAuxiliaryModeFloating),
+					}, false),
+				},
+
+				"auxiliary_sku": {
+					Type:     pluginsdk.TypeString,
+					Optional: true,
+					ValidateFunc: validation.StringInSlice([]string{
+						string(virtualmachinescalesets.NetworkInterfaceAuxiliarySkuAEight),
+						string(virtualmachinescalesets.NetworkInterfaceAuxiliarySkuAFour),
+						string(virtualmachinescalesets.NetworkInterfaceAuxiliarySkuAOne),
+						string(virtualmachinescalesets.NetworkInterfaceAuxiliarySkuATwo),
+					}, false),
+				},
+
 				"dns_servers": {
 					Type:     pluginsdk.TypeList,
 					Optional: true,
@@ -1066,6 +1086,14 @@ func ExpandOrchestratedVirtualMachineScaleSetNetworkInterface(input []interface{
 			},
 		}
 
+		if auxiliaryMode := raw["auxiliary_mode"].(string); auxiliaryMode != "" {
+			config.Properties.AuxiliaryMode = pointer.To(virtualmachinescalesets.NetworkInterfaceAuxiliaryMode(auxiliaryMode))
+		}
+
+		if auxiliarySku := raw["auxiliary_sku"].(string); auxiliarySku != "" {
+			config.Properties.AuxiliarySku = pointer.To(virtualmachinescalesets.NetworkInterfaceAuxiliarySku(auxiliarySku))
+		}
+
 		if nsgId := raw["network_security_group_id"].(string); nsgId != "" {
 			config.Properties.NetworkSecurityGroup = &virtualmachinescalesets.SubResource{
 				Id: pointer.To(nsgId),
@@ -1200,6 +1228,14 @@ func ExpandOrchestratedVirtualMachineScaleSetNetworkInterfaceUpdate(input []inte
 				IPConfigurations:            &ipConfigurations,
 				Primary:                     pointer.To(raw["primary"].(bool)),
 			},
+		}
+
+		if auxiliaryMode := raw["auxiliary_mode"].(string); auxiliaryMode != "" {
+			config.Properties.AuxiliaryMode = pointer.To(virtualmachinescalesets.NetworkInterfaceAuxiliaryMode(auxiliaryMode))
+		}
+
+		if auxiliarySku := raw["auxiliary_sku"].(string); auxiliarySku != "" {
+			config.Properties.AuxiliarySku = pointer.To(virtualmachinescalesets.NetworkInterfaceAuxiliarySku(auxiliarySku))
 		}
 
 		if nsgId := raw["network_security_group_id"].(string); nsgId != "" {
@@ -1824,11 +1860,19 @@ func FlattenOrchestratedVirtualMachineScaleSetNetworkInterface(input *[]virtualm
 
 	results := make([]interface{}, 0)
 	for _, v := range *input {
-		var networkSecurityGroupId string
+		var auxiliaryMode, auxiliarySku, networkSecurityGroupId string
 		var enableAcceleratedNetworking, enableIPForwarding, primary bool
 		var dnsServers []interface{}
 		var ipConfigurations []interface{}
 		if props := v.Properties; props != nil {
+			if props.AuxiliaryMode != nil && *props.AuxiliaryMode != virtualmachinescalesets.NetworkInterfaceAuxiliaryModeNone {
+				auxiliaryMode = string(pointer.From(props.AuxiliaryMode))
+			}
+
+			if props.AuxiliarySku != nil && *props.AuxiliarySku != virtualmachinescalesets.NetworkInterfaceAuxiliarySkuNone {
+				auxiliarySku = string(pointer.From(props.AuxiliarySku))
+			}
+
 			if props.NetworkSecurityGroup != nil && props.NetworkSecurityGroup.Id != nil {
 				networkSecurityGroupId = *props.NetworkSecurityGroup.Id
 			}
@@ -1858,6 +1902,8 @@ func FlattenOrchestratedVirtualMachineScaleSetNetworkInterface(input *[]virtualm
 
 		results = append(results, map[string]interface{}{
 			"name":                          v.Name,
+			"auxiliary_mode":                auxiliaryMode,
+			"auxiliary_sku":                 auxiliarySku,
 			"dns_servers":                   dnsServers,
 			"enable_accelerated_networking": enableAcceleratedNetworking,
 			"enable_ip_forwarding":          enableIPForwarding,
